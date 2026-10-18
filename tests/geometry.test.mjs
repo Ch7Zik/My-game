@@ -19,6 +19,7 @@ test('shape checks reject narrow, elongated, angular, or repeated silhouettes', 
   const quality = inspectRegions(240, 360, picture.labels, picture.regions);
   assert.deepEqual(qualityProblems(quality), []);
   assert.ok(quality.every(piece => piece.areaRatio > .08));
+  assert.ok(quality.every(piece => piece.connected));
   assert.ok(quality.every(piece => piece.localWidth > .08 && piece.localHeight > .07));
   const damaged = quality.map(q => ({ ...q }));
   damaged[0].localWidth = .01; damaged[1].aspect = 4;
@@ -41,8 +42,13 @@ test('mobile and desktop layouts keep the picture proportional and every start p
       const pieceW = (region.bounds.width + 12) / 240 * board.width * scale;
       const pieceH = (region.bounds.height + 12) / 360 * board.height * scale;
       const p = startPosition(board, width, SLOT_ORDER[region.id], pieceW, pieceH);
+      const home = {
+        x: board.x + (region.bounds.x + region.bounds.width / 2) / 240 * board.width,
+        y: board.y + (region.bounds.y + region.bounds.height / 2) / 360 * board.height,
+      };
       assert.ok(p.x - pieceW / 2 >= 0 && p.x + pieceW / 2 <= width, `${width}: piece ${region.id} x`);
       assert.ok(p.y - pieceH / 2 >= board.y && p.y + pieceH / 2 <= board.y + board.height, `${width}: piece ${region.id} y`);
+      assert.ok(Math.hypot(p.x - home.x, p.y - home.y) > Math.max(28, board.width * .14), `${width}: piece ${region.id} starts outside magnet`);
     }
   }
 });

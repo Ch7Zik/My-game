@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import Phaser from 'phaser';
 import { createRegions, inspectRegions, qualityProblems, type PieceRegion, type Point } from './geometry';
-import { canAdvance, canDrag, isComplete, shouldSnap } from './puzzleRules';
+import { canAdvance, canDrag, isComplete, shouldSnap, wasDragged } from './puzzleRules';
 import { gameLayout, looseScale, startPosition, SLOT_ORDER, type Rect } from './layout';
 import './style.css';
 
@@ -15,6 +15,7 @@ class PuzzleScene extends Phaser.Scene {
   private mode: 'menu' | 'game' | 'complete' | 'soon' = 'menu';
   private dragging: Piece | null = null;
   private pointerOffset: Point = { x: 0, y: 0 };
+  private dragOrigin: Point = { x: 0, y: 0 };
   private board: Rect = { x: 0, y: 0, width: 0, height: 0 };
   private preview: Rect | null = null;
   private hintPiece: Piece | null = null;
@@ -84,15 +85,16 @@ class PuzzleScene extends Phaser.Scene {
       const lctx = loose.getContext('2d')!;
       lctx.save(); lctx.shadowColor = 'rgba(0,0,0,.85)'; lctx.shadowBlur = 22; lctx.shadowOffsetY = 9;
       lctx.drawImage(clean, 0, 0); lctx.restore();
-      // A two pixel warm rim follows the actual silhouette. The clean placed texture has no rim.
+      // A soft two-pixel rim follows the silhouette. Placed pieces use the clean texture.
       const rim = lctx.createImageData(tw, th);
       for (let py = 2; py < th - 2; py++) for (let px = 2; px < tw - 2; px++) {
         const index = py * tw + px;
         if (hit[index]) continue;
-        const near = hit[index - 1] || hit[index + 1] || hit[index - tw] || hit[index + tw]
+        const inner = hit[index - 1] || hit[index + 1] || hit[index - tw] || hit[index + tw]
           || hit[index - tw - 1] || hit[index - tw + 1] || hit[index + tw - 1] || hit[index + tw + 1];
-        if (!near) continue;
-        const q = index * 4; rim.data[q] = 242; rim.data[q + 1] = 202; rim.data[q + 2] = 129; rim.data[q + 3] = 210;
+        const outer = hit[index - 2] || hit[index + 2] || hit[index - tw * 2] || hit[index + tw * 2];
+        if (!inner && !outer) continue;
+        const q = index * 4; rim.data[q] = 242; rim.data[q + 1] = 202; rim.data[q + 2] = 129; rim.data[q + 3] = inner ? 220 : 90;
       }
       const rimCanvas = document.createElement('canvas'); rimCanvas.width = tw; rimCanvas.height = th;
       rimCanvas.getContext('2d')!.putImageData(rim, 0, 0);
@@ -126,7 +128,11 @@ class PuzzleScene extends Phaser.Scene {
 
   private pointerDown(pointer: Phaser.Input.Pointer) {
     const { x, y } = pointer;
-    if (this.mode === 'menu') { if (this.menuButton().contains(x, y)) this.startGame(); return; }
+    if (this.mode === 'menu') {
+      if (this.menuButton().contains(x, y)) this.startGame();
+      else if (this.galleryButton().contains(x, y)) { this.mode = 'soon'; this.draw(); }
+      return;
+    }
     if (this.mode === 'soon') { this.mode = 'menu'; this.draw(); return; }
     if (this.backButton().contains(x, y)) { this.mode = 'menu'; this.removePieces(); this.draw(); return; }
     if (this.mode === 'complete') { if (canAdvance(true, this.nextButton().contains(x, y))) { this.removePieces(); this.mode = 'soon'; this.draw(); } return; }
@@ -136,6 +142,9 @@ class PuzzleScene extends Phaser.Scene {
     this.dragging = hit;
     hit.sprite.setDepth(100).setTint(0xfff3cf);
     this.pointerOffset = { x: hit.sprite.x - x, y: hit.sprite.y - y };
+    this.dragOrigin = { x: hit.sprite.x, y: hit.sprite.y };
+    const scale = looseScale(this.scale.width, this.scale.height) * 1.025;
+    hit.sprite.setDisplaySize(hit.baseW * scale, hit.baseH * scale);
   }
   private pointerMove(pointer: Phaser.Input.Pointer) {
     if (!this.dragging) return;
@@ -147,8 +156,11 @@ class PuzzleScene extends Phaser.Scene {
     if (!this.dragging) return;
     const p = this.dragging; this.dragging = null;
     p.sprite.clearTint().setDepth(10 + p.id);
+    const moved = wasDragged(this.dragOrigin, { x: p.sprite.x, y: p.sprite.y });
+    const scale = looseScale(this.scale.width, this.scale.height);
+    p.sprite.setDisplaySize(p.baseW * scale, p.baseH * scale);
     const radius = Math.max(28, this.board.width * .14);
-    if (shouldSnap({ x: p.sprite.x, y: p.sprite.y }, p.home, radius)) {
+    if (moved && shouldSnap({ x: p.sprite.x, y: p.sprite.y }, p.home, radius)) {
       p.placed = true; this.persistProgress();
       this.tweens.add({ targets: p.sprite, x: p.home.x, y: p.home.y, displayWidth: p.baseW, displayHeight: p.baseH, duration: 250, ease: 'Sine.Out', onComplete: () => {
         p.sprite.setTexture(`piece-clean-${p.id}`).setDisplaySize(p.baseW, p.baseH);
@@ -188,13 +200,14 @@ class PuzzleScene extends Phaser.Scene {
   }
   private startGame() { this.menuArt?.destroy(); this.menuArt = null; this.mode = 'game'; this.preparePieces(); this.draw(); }
   private removePieces() {
-    this.dragging = null; this.pieces.forEach(p => p.sprite.destroy()); this.pieces = [];
+    this.dragging = null; this.hintPiece = null; this.pieces.forEach(p => p.sprite.destroy()); this.pieces = [];
     this.guideImage?.destroy(); this.guideImage = null; this.previewImage?.destroy(); this.previewImage = null;
     this.completeImage?.destroy(); this.completeImage = null;
     for (let id = 0; id < 8; id++) { this.textures.remove(`piece-clean-${id}`); this.textures.remove(`piece-loose-${id}`); }
   }
   private persistProgress() { localStorage.setItem('mystic-puzzles-progress', JSON.stringify({ level: 1, placed: this.pieces.filter(p => p.placed).map(p => p.id) })); }
   private menuButton() { const w = this.scale.width, h = this.scale.height; return new Phaser.Geom.Rectangle(w / 2 - Math.min(296, w * .7) / 2, h - (h < 700 ? 112 : 138), Math.min(296, w * .7), 62); }
+  private galleryButton() { const w = this.scale.width, h = this.scale.height, width = Math.min(230, w * .58); return new Phaser.Geom.Rectangle(w / 2 - width / 2, h < 700 ? h - 40 : h - 64, width, h < 700 ? 33 : 39); }
   private nextButton() { const w = this.scale.width, h = this.scale.height; return new Phaser.Geom.Rectangle(w / 2 - Math.min(310, w * .76) / 2, h < 700 ? h - 48 : h - 65, Math.min(310, w * .76), h < 700 ? 46 : 52); }
   private backButton() { const h = this.scale.height; return new Phaser.Geom.Circle(this.headerCenter() - this.headerWidth() / 2 + 31, h < 700 ? 36 : 43, 25); }
   private hintButton() { const h = this.scale.height; return new Phaser.Geom.Circle(this.headerCenter() + this.headerWidth() / 2 - 31, h < 700 ? 36 : 43, 25); }
@@ -203,6 +216,15 @@ class PuzzleScene extends Phaser.Scene {
 
   update() {
     this.fx.clear();
+    if (this.dragging) {
+      const p = this.dragging, distance = Math.hypot(p.sprite.x - p.home.x, p.sprite.y - p.home.y);
+      const range = Math.max(70, this.board.width * .27);
+      if (distance < range) {
+        const glow = (1 - distance / range) * .6;
+        this.fx.lineStyle(2, 0xffd582, glow).strokeCircle(p.home.x, p.home.y, 22 + 8 * (1 - glow));
+        this.fx.lineStyle(1, 0xffedbd, glow * .7).strokeCircle(p.home.x, p.home.y, 32 + 8 * (1 - glow));
+      }
+    }
     if (this.mode === 'game' && this.hintPiece && this.time.now < this.hintUntil) {
       const p = this.hintPiece;
       this.fx.lineStyle(3, 0xffda7c, .8).strokeCircle(p.home.x, p.home.y, 31 + Math.sin(this.time.now / 120) * 4);
@@ -232,18 +254,32 @@ class PuzzleScene extends Phaser.Scene {
       const artW = Math.min(w * (w > 700 ? .52 : .97), (h - 132) * 2 / 3);
       this.menuArt.setVisible(true).setPosition(w / 2, h * .51).setDisplaySize(artW, artW * 1.5).setAlpha(.95);
       this.boardG.lineStyle(2, 0xc7914b, .8).strokeRoundedRect(w / 2 - artW / 2 - 3, h * .51 - artW * .75 - 3, artW + 6, artW * 1.5 + 6, 18);
+      this.boardG.lineStyle(1, 0xffe2a3, .34).strokeRoundedRect(w / 2 - artW / 2 + 1, h * .51 - artW * .75 + 1, artW - 2, artW * 1.5 - 2, 15);
     }
     const signW = Math.min(340, w - 30), signH = h < 700 ? 122 : 142, signY = h < 700 ? 91 : 109;
+    for (const side of [-1, 1]) {
+      const lx = w / 2 + side * (signW / 2 - 29);
+      this.chrome.lineStyle(2, 0xb88546, .8).lineBetween(lx, 1, lx, signY - signH / 2 + 17);
+    }
     this.chrome.fillStyle(0x030609, .65).fillRoundedRect(w / 2 - signW / 2 + 4, signY - signH / 2 + 7, signW, signH, 24);
     this.chrome.fillGradientStyle(0x694122, 0x392315, 0x21170f, 0x5c361b, 1).fillRoundedRect(w / 2 - signW / 2, signY - signH / 2, signW, signH, 23);
     this.chrome.lineStyle(3, 0xd69b4d, .95).strokeRoundedRect(w / 2 - signW / 2 + 3, signY - signH / 2 + 3, signW - 6, signH - 6, 20);
     this.chrome.lineStyle(1, 0xf5d184, .65).strokeRoundedRect(w / 2 - signW / 2 + 9, signY - signH / 2 + 9, signW - 18, signH - 18, 16);
+    for (let i = 0; i < 8; i++) {
+      const yy = signY - signH / 2 + 21 + i * (signH - 40) / 7;
+      this.chrome.lineStyle(1, i % 2 ? 0xe0aa65 : 0x120b08, .14).lineBetween(w / 2 - signW / 2 + 19, yy, w / 2 + signW / 2 - 20 - (i % 3) * 15, yy + (i % 2 ? 2 : -2));
+    }
+    this.chrome.fillStyle(0xffe1a0, .15).fillRoundedRect(w / 2 - signW / 2 + 13, signY - signH / 2 + 13, signW - 26, 7, 3);
     for (const side of [-1, 1]) { this.chrome.fillStyle(0xffdc8c, .8).fillCircle(w / 2 + side * (signW / 2 - 18), signY, 3); }
+    for (const side of [-1, 1]) this.lantern(w / 2 + side * (signW / 2 - 29), signY - signH / 2 + 19);
     this.txt(w / 2, signY - 25, 'Мистические', Math.min(37, w * .097), '#ffe1a1', true);
     this.txt(w / 2, signY + 26, 'Пазлы', Math.min(55, w * .145), '#ffd177', true);
     this.txt(w / 2, h - (h < 700 ? 144 : 174), 'Собирай волшебные картины', Math.min(17, w * .043), '#fff0cc', true);
     const button = this.menuButton(); this.button(button.centerX, button.centerY, button.width, button.height, 'Играть');
-    this.txt(w / 2, h - 39, 'Галерея откроется в следующих версиях', 12, '#d9c7a4');
+    const gallery = this.galleryButton();
+    this.chrome.fillStyle(0x302215, .9).fillRoundedRect(gallery.x, gallery.y, gallery.width, gallery.height, 11);
+    this.chrome.lineStyle(1.2, 0xc59455, .85).strokeRoundedRect(gallery.x + 1, gallery.y + 1, gallery.width - 2, gallery.height - 2, 10);
+    this.txt(gallery.centerX, gallery.centerY, 'Галерея · скоро', h < 700 ? 13 : 15, '#f4ddb4', true);
   }
   private drawGame(w: number, h: number) {
     this.menuArt?.setVisible(false);
@@ -251,6 +287,9 @@ class PuzzleScene extends Phaser.Scene {
     this.boardG.fillStyle(0x02070e, .63).fillRoundedRect(b.x - 7, b.y - 7, b.width + 14, b.height + 14, 15);
     this.boardG.lineStyle(2, 0xbf8d4b, .85).strokeRoundedRect(b.x - 7, b.y - 7, b.width + 14, b.height + 14, 15);
     this.boardG.lineStyle(1, 0xffdd99, .3).strokeRoundedRect(b.x - 3, b.y - 3, b.width + 6, b.height + 6, 12);
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+      this.boardG.fillStyle(0xc79957, .8).fillCircle(b.x + b.width / 2 + sx * (b.width / 2 - 9), b.y + b.height / 2 + sy * (b.height / 2 - 9), 2);
+    }
     this.guideImage?.setPosition(b.x + b.width / 2, b.y + b.height / 2).setDisplaySize(b.width, b.height);
     this.completeImage?.setPosition(b.x + b.width / 2, b.y + b.height / 2).setDisplaySize(b.width, b.height);
     if (this.preview && this.mode === 'game' && this.previewImage) {
@@ -258,11 +297,15 @@ class PuzzleScene extends Phaser.Scene {
       this.boardG.fillStyle(0x090e18, .85).fillRoundedRect(p.x - 8, p.y - 8, p.width + 16, p.height + 16, 12);
       this.boardG.lineStyle(2, 0xbd8f53, .9).strokeRoundedRect(p.x - 8, p.y - 8, p.width + 16, p.height + 16, 12);
       this.previewImage.setVisible(true).setPosition(p.x + p.width / 2, p.y + p.height / 2).setDisplaySize(p.width, p.height);
+      this.chrome.lineStyle(1, 0xffdd9b, .42).strokeRoundedRect(p.x - 3, p.y - 3, p.width + 6, p.height + 6, 10);
+      this.chrome.fillGradientStyle(0x57371f, 0x3c291d, 0x221911, 0x302116, .94).fillRoundedRect(p.x + p.width / 2 - 118, p.y - 56, 236, 34, 9);
+      this.chrome.lineStyle(1.4, 0xe0ad69, .85).strokeRoundedRect(p.x + p.width / 2 - 117, p.y - 55, 234, 32, 8);
       this.txt(p.x + p.width / 2, p.y - 34, 'ВОЛШЕБНАЯ КАРТИНА', 15, '#ffe4ad', true);
     } else this.previewImage?.setVisible(false);
     const hw = this.headerWidth(), hx = this.headerCenter(), hy = h < 700 ? 36 : 43;
     this.chrome.fillGradientStyle(0x142b3b, 0x182b39, 0x071421, 0x0a1a2b, 1).fillRoundedRect(hx - hw / 2, 7, hw, hy * 2 - 7, 16);
     this.chrome.lineStyle(1.5, 0xbd8546, .8).strokeRoundedRect(hx - hw / 2 + 1, 8, hw - 2, hy * 2 - 9, 15);
+    this.chrome.fillStyle(0xffd695, .1).fillRoundedRect(hx - hw / 2 + 10, 12, hw - 20, 3, 2);
     const back = this.backButton(), hint = this.hintButton();
     this.iconCircle(back.x, back.y); this.iconCircle(hint.x, hint.y);
     this.txt(back.x, back.y - 1, '‹', 37, '#ffe5ae', true);
@@ -270,6 +313,7 @@ class PuzzleScene extends Phaser.Scene {
     const plaqueW = Math.min(158, hw - 135);
     this.chrome.fillStyle(0x48301b, .95).fillRoundedRect(hx - plaqueW / 2, 13, plaqueW, hy * 2 - 19, 9);
     this.chrome.lineStyle(1.2, 0xe2ad62, .88).strokeRoundedRect(hx - plaqueW / 2 + 2, 15, plaqueW - 4, hy * 2 - 23, 8);
+    this.chrome.lineStyle(1, 0xffd489, .17).lineBetween(hx - plaqueW / 2 + 13, 21, hx + plaqueW / 2 - 13, 20);
     this.txt(hx, h < 700 ? 24 : 29, 'Уровень 1', h < 700 ? 13 : 15, '#fff2d4', true);
     const count = this.pieces.filter(p => p.placed).length;
     const stars = this.mode === 'complete' ? '★  ★  ★' : count >= 5 ? '★  ★  ☆' : count > 0 ? '★  ☆  ☆' : '☆  ☆  ☆';
@@ -279,6 +323,7 @@ class PuzzleScene extends Phaser.Scene {
         const p = this.preview, center = p.x + p.width / 2;
         this.boardG.fillGradientStyle(0x142b3b, 0x142b3b, 0x07131f, 0x07131f, .8).fillRoundedRect(p.x - 8, p.y + 80, p.width + 16, p.height - 160, 18);
         this.boardG.lineStyle(1.5, 0xc69553, .75).strokeRoundedRect(p.x - 8, p.y + 80, p.width + 16, p.height - 160, 18);
+        this.boardG.lineStyle(1, 0xffdca0, .25).strokeRoundedRect(p.x - 3, p.y + 85, p.width + 6, p.height - 170, 14);
         this.txt(center, p.y + 190, '✦  ★  ★  ★  ✦', 30, '#ffdc8f', true);
         this.txt(center, p.y + 265, 'Картина ожила', 30, '#ffe5b1', true);
         this.txt(center, p.y + 335, 'Самые тёплые огни', 19, '#e9dac1');
@@ -287,8 +332,14 @@ class PuzzleScene extends Phaser.Scene {
       this.txt(b.x + b.width / 2, b.y + b.height + 29, 'Самые тёплые огни видны в тишине…', h < 700 ? 13 : Math.min(16, w * .04), '#ffe8b8', true);
       const next = this.nextButton(); this.button(next.centerX, next.centerY, next.width, next.height, 'Следующий уровень');
     } else {
-      this.txt(b.x + b.width / 2, b.y + b.height + 27, `${count} / 8 собрано`, 16, '#f4d9a6', true);
-      this.txt(b.x + b.width / 2, Math.min(h - 28, b.y + b.height + 64), 'Перетаскивай фрагменты на картину', Math.min(14, w * .035), '#e7d7bc');
+      const panelH = h < 700 ? 62 : 76, spare = h - b.y - b.height;
+      const panelY = b.y + b.height + Math.max(10, (spare - panelH) / 2);
+      const panelW = Math.min(b.width * .88, 405), panelX = b.x + b.width / 2 - panelW / 2;
+      this.boardG.fillGradientStyle(0x442c1c, 0x3b271b, 0x0a1a27, 0x102437, .86).fillRoundedRect(panelX, panelY, panelW, panelH, 12);
+      this.boardG.lineStyle(1.5, 0xd5a866, .77).strokeRoundedRect(panelX, panelY, panelW, panelH, 12);
+      this.boardG.lineStyle(1, 0xffdda1, .25).strokeRoundedRect(panelX + 4, panelY + 4, panelW - 8, panelH - 8, 9);
+      this.txt(panelX + panelW / 2, panelY + (h < 700 ? 19 : 24), `✦  ${count} / 8 собрано  ✦`, h < 700 ? 14 : 16, '#ffdfa5', true);
+      this.txt(panelX + panelW / 2, panelY + (h < 700 ? 44 : 53), 'Перетаскивай фрагменты на картину', Math.min(14, w * .035), '#f2e3c7');
     }
   }
   private drawSoon(w: number, h: number) {
@@ -302,10 +353,30 @@ class PuzzleScene extends Phaser.Scene {
     this.chrome.lineStyle(1, 0xffdc91, .8).strokeCircle(x, y, 18);
   }
   private bulb(x: number, y: number) {
-    this.chrome.fillStyle(0xffdf88, 1).fillCircle(x, y - 4, 9);
-    this.chrome.fillStyle(0xffca5d, 1).fillRoundedRect(x - 5, y + 3, 10, 10, 3);
-    this.chrome.fillStyle(0x724421, 1).fillRoundedRect(x - 4, y + 11, 8, 3, 2);
-    this.chrome.lineStyle(2, 0xffe6a6, .85).strokeCircle(x, y - 4, 10);
+    this.chrome.fillStyle(0xffd671, .12).fillCircle(x, y - 4, 16);
+    this.chrome.lineStyle(1.8, 0xffe1a0, .9);
+    this.chrome.lineBetween(x, y - 17, x, y - 14);
+    this.chrome.lineBetween(x - 13, y - 9, x - 16, y - 11);
+    this.chrome.lineBetween(x + 13, y - 9, x + 16, y - 11);
+    this.chrome.lineBetween(x - 14, y + 1, x - 17, y + 2);
+    this.chrome.lineBetween(x + 14, y + 1, x + 17, y + 2);
+    this.chrome.fillStyle(0xffe5a0, 1).fillCircle(x, y - 5, 8);
+    this.chrome.lineStyle(2, 0xfff4cc, .95).strokeCircle(x, y - 5, 8);
+    this.chrome.lineStyle(1.5, 0x9a5f2e, .9).lineBetween(x - 3, y - 5, x, y - 1);
+    this.chrome.lineBetween(x + 3, y - 5, x, y - 1);
+    this.chrome.fillStyle(0xf5c66b, 1).fillRoundedRect(x - 4, y + 1, 8, 7, 2);
+    this.chrome.fillStyle(0x9b632e, 1).fillRoundedRect(x - 5, y + 7, 10, 3, 1);
+    this.chrome.fillStyle(0xffd47b, 1).fillRoundedRect(x - 5, y + 10, 10, 3, 1);
+    this.chrome.fillStyle(0x9b632e, 1).fillRoundedRect(x - 3, y + 13, 6, 2, 1);
+  }
+  private lantern(x: number, y: number) {
+    for (const [r, a] of [[30, .06], [21, .10], [14, .16]] as const) this.chrome.fillStyle(0xffbd55, a).fillCircle(x, y + 3, r);
+    this.chrome.fillStyle(0x4a2b16, .95).fillRoundedRect(x - 9, y - 10, 18, 24, 3);
+    this.chrome.lineStyle(2, 0xd99a4d, .9).strokeRoundedRect(x - 9, y - 10, 18, 24, 3);
+    this.chrome.fillStyle(0xffd26b, .95).fillRoundedRect(x - 5, y - 6, 10, 15, 2);
+    this.chrome.fillStyle(0xfff0bb, .7).fillCircle(x, y + 1, 3);
+    this.chrome.lineStyle(2, 0x3a2517, .9).lineBetween(x, y - 8, x, y + 10);
+    this.chrome.fillStyle(0xb9823e, 1).fillTriangle(x - 11, y - 10, x + 11, y - 10, x, y - 16);
   }
   private button(x: number, y: number, w: number, h: number, label: string) {
     this.chrome.fillStyle(0x020704, .65).fillRoundedRect(x - w / 2 + 2, y - h / 2 + 6, w, h, h / 2);
