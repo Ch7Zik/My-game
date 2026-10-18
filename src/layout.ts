@@ -1,13 +1,15 @@
 import type { Point } from './geometry';
 
 export interface Rect { x: number; y: number; width: number; height: number }
-export const SLOT_ORDER = [5, 2, 7, 0, 6, 1, 4, 3];
+// Curated scattered composition. Slots correspond to the eight authored masks;
+// uneven gaps and heights avoid the two-column or near-solved appearance.
+export const SLOT_ORDER = [0, 1, 2, 3, 4, 5, 6, 7];
 export const SLOT_POINTS = [
-  [.245, .125], [.745, .124], [.275, .365], [.737, .365],
-  [.239, .608], [.755, .602], [.272, .855], [.741, .853],
+  [.722, .147], [.162, .153], [.857, .404], [.262, .788],
+  [.772, .844], [.498, .281], [.183, .455], [.601, .596],
 ];
 export function looseScale(viewportWidth: number, viewportHeight: number): number {
-  return viewportHeight < 700 ? .70 : viewportWidth < 700 ? .75 : .82;
+  return viewportHeight < 700 ? .66 : viewportWidth < 700 ? .70 : .78;
 }
 export function gameLayout(w: number, h: number): { board: Rect; preview: Rect | null } {
   const desktop = w >= 1000 && w / h > 1.3;

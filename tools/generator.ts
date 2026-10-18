@@ -45,7 +45,8 @@ generateButton.addEventListener('click', async () => {
       offsetX += width;
     }
     const png = await new Promise<Blob>((resolve, reject) => atlas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Не удалось создать PNG.')), 'image/png'));
-    const json = { version: 1, source: file.name, width: source.width, height: source.height, columns: cols, rows, seed, algorithm: cols === 2 && rows === 4 ? 'authored smooth 2x4' : 'experimental smooth warped Voronoi', totalPixels: labels.length, coveredPixels: regions.reduce((sum, region) => sum + region.pixels, 0), minAreaRatio: Math.min(...regions.map(region => region.pixels / labels.length)), quality: quality.map(({ signature, ...metrics }) => metrics), qualityProblems: problems, frames };
+    const authored = cols === 2 && rows === 4;
+    const json = { version: 2, source: file.name, width: source.width, height: source.height, columns: cols, rows, seed: authored ? null : seed, algorithm: authored ? 'authored staggered organic mosaic' : 'experimental smooth warped Voronoi', totalPixels: labels.length, coveredPixels: regions.reduce((sum, region) => sum + region.pixels, 0), minAreaRatio: Math.min(...regions.map(region => region.pixels / labels.length)), quality: quality.map(({ signature, ...metrics }) => metrics), qualityProblems: problems, frames };
     addDownload('Фрагменты PNG', URL.createObjectURL(png), `${stripExtension(file.name)}-pieces.png`);
     addDownload('Координаты JSON', URL.createObjectURL(new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' })), `${stripExtension(file.name)}-pieces.json`);
     preview.src = URL.createObjectURL(png); preview.hidden = false;
