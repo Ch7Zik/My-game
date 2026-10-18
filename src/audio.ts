@@ -2,12 +2,11 @@ import { assetUrl } from './assetUrl';
 import { restoreAudioSettings, saveAudioSettings, type AudioSettings, type AudioStorage } from './audioSettings';
 import { MusicPlaylist } from './music';
 
-type Effect = 'pick' | 'place' | 'complete' | 'button';
+type Effect = 'place' | 'complete';
 const FILES: Record<Effect, string> = {
-  pick: 'piece-pick', place: 'mixkit-modern-click-box-check-1120',
-  complete: 'mixkit-winning-chimes-2015', button: 'button',
+  place: 'mixkit-modern-click-box-check-1120', complete: 'mixkit-winning-chimes-2015',
 };
-const VOLUMES: Record<Effect, number> = { pick: .19, place: .7, complete: .25, button: .16 };
+const VOLUMES: Record<Effect, number> = { place: .7, complete: .25 };
 
 /** Persistent music player plus one gesture-unlocked Web Audio context for effects. */
 export class PuzzleAudio {
@@ -45,7 +44,7 @@ export class PuzzleAudio {
       }
       if (!this.unlocked) {
         this.unlocked = true;
-        for (const effect of ['button', 'pick', 'place', 'complete'] as const) void this.load(effect);
+        for (const effect of ['place', 'complete'] as const) void this.load(effect);
       }
       void this.context.resume().catch(() => {});
     } catch { /* The game stays playable without effects. */ }

@@ -150,47 +150,44 @@ class PuzzleScene extends Phaser.Scene {
     const x = pointer.x / RENDER_SCALE, y = pointer.y / RENDER_SCALE;
     this.audio.unlock();
     if (this.mode === 'menu') {
-      if (this.soundButton().contains(x, y)) { this.soundPanelOpen = !this.soundPanelOpen; this.audio.play('button'); this.draw(); return; }
+      if (this.soundButton().contains(x, y)) { this.soundPanelOpen = !this.soundPanelOpen; this.draw(); return; }
       if (this.soundPanelOpen) {
-        if (this.musicButton().contains(x, y)) { this.audio.setMusic(!this.audio.settings.music); this.audio.play('button'); this.draw(); return; }
-        if (this.effectsButton().contains(x, y)) { this.audio.setEffects(!this.audio.settings.effects); this.audio.play('button'); this.draw(); return; }
+        if (this.musicButton().contains(x, y)) { this.audio.setMusic(!this.audio.settings.music); this.draw(); return; }
+        if (this.effectsButton().contains(x, y)) { this.audio.setEffects(!this.audio.settings.effects); this.draw(); return; }
         this.soundPanelOpen = false; this.draw(); return;
       }
       if (this.menuButton().contains(x, y)) {
         const next = nextUnplayed(this.progress);
-        this.audio.play('button');
         this.menuPressed = true; this.draw();
         this.time.delayedCall(100, () => {
           this.menuPressed = false;
           if (next > LEVELS.length) { this.mode = 'levels'; this.draw(); } else this.startGame(next);
         });
-      } else if (this.levelsButton().contains(x, y)) { this.audio.play('button'); this.mode = 'levels'; this.draw(); }
-      else if (this.galleryButton().contains(x, y)) { this.audio.play('button'); this.mode = 'gallery'; this.draw(); }
+      } else if (this.levelsButton().contains(x, y)) { this.mode = 'levels'; this.draw(); }
+      else if (this.galleryButton().contains(x, y)) { this.mode = 'gallery'; this.draw(); }
       return;
     }
     if (this.mode === 'levels' || this.mode === 'gallery') {
-      if (this.backButton().contains(x, y)) { this.audio.play('button'); this.mode = 'menu'; this.draw(); return; }
+      if (this.backButton().contains(x, y)) { this.mode = 'menu'; this.draw(); return; }
       const id = this.cardAt(x, y);
-      if (id && this.mode === 'levels' && isUnlocked(this.progress, id)) { this.audio.play('button'); this.startGame(id); }
-      else if (id && this.mode === 'gallery' && isInGallery(this.progress, id)) { this.audio.play('button'); this.viewedLevel = id; this.mode = 'view'; this.draw(); }
+      if (id && this.mode === 'levels' && isUnlocked(this.progress, id)) { this.startGame(id); }
+      else if (id && this.mode === 'gallery' && isInGallery(this.progress, id)) { this.viewedLevel = id; this.mode = 'view'; this.draw(); }
       return;
     }
-    if (this.mode === 'view') { if (this.backButton().contains(x, y)) { this.audio.play('button'); this.mode = 'gallery'; this.draw(); } return; }
-    if (this.backButton().contains(x, y)) { this.audio.play('button'); this.mode = 'levels'; this.removePieces(); this.draw(); return; }
+    if (this.mode === 'view') { if (this.backButton().contains(x, y)) { this.mode = 'gallery'; this.draw(); } return; }
+    if (this.backButton().contains(x, y)) { this.mode = 'levels'; this.removePieces(); this.draw(); return; }
     if (this.mode === 'complete') {
-      if (this.hintButton().contains(x, y)) { this.audio.play('button'); this.removePieces(); this.mode = 'gallery'; this.draw(); return; }
+      if (this.hintButton().contains(x, y)) { this.removePieces(); this.mode = 'gallery'; this.draw(); return; }
       if (canAdvance(true, this.nextButton().contains(x, y))) {
-        this.audio.play('button');
         const next = this.level.id + 1;
         if (next <= LEVELS.length) this.startGame(next);
         else { this.removePieces(); this.mode = 'gallery'; this.draw(); }
       }
       return;
     }
-    if (this.hintButton().contains(x, y)) { this.audio.play('button'); this.showHint(); return; }
+    if (this.hintButton().contains(x, y)) { this.showHint(); return; }
     const hit = [...this.pieces].sort((a, b) => b.sprite.depth - a.sprite.depth).find(p => canDrag(p.placed) && this.pieceContains(p, x, y));
     if (!hit) return;
-    this.audio.play('pick');
     this.dragging = hit;
     hit.sprite.setDepth(100).setTint(0xfff3cf);
     this.pointerOffset = { x: hit.sprite.x - x, y: hit.sprite.y - y };
