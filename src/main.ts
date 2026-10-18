@@ -234,8 +234,9 @@ class PuzzleScene extends Phaser.Scene {
     this.tweens.add({ targets: piece.sprite, alpha: .48, yoyo: true, repeat: 3, duration: 185, onComplete: () => piece.sprite.setAlpha(1) });
   }
   private finish() {
+    if (this.mode === 'complete') return;
     this.mode = 'complete';
-    this.audio.play('complete');
+    window.setTimeout(() => { if (this.mode === 'complete') this.audio.play('complete'); }, 300);
     this.completeImage = this.add.image(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2, 'whole-picture').setDepth(60).setDisplaySize(this.board.width, this.board.height).setAlpha(0);
     this.tweens.add({ targets: this.completeImage, alpha: 1, duration: 650, ease: 'Sine.Out', onComplete: () => { this.pieces.forEach(p => p.sprite.setVisible(false)); this.guideImage?.setVisible(false); } });
     this.progress = completeLevel(this.progress, this.level.id);
