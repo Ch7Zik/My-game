@@ -1,4 +1,4 @@
-import { createRegions } from '../src/geometry';
+import { createRegions, inspectRegions, qualityProblems } from '../src/geometry';
 
 const fileInput = document.querySelector<HTMLInputElement>('#source')!;
 const generateButton = document.querySelector<HTMLButtonElement>('#generate')!;
@@ -20,6 +20,9 @@ generateButton.addEventListener('click', async () => {
     const sctx = source.getContext('2d', { willReadFrequently: true })!; sctx.drawImage(image, 0, 0);
     const data = sctx.getImageData(0, 0, source.width, source.height);
     const { labels, regions } = createRegions(source.width, source.height, cols, rows, seed);
+    const quality = inspectRegions(source.width, source.height, labels, regions);
+    const problems = qualityProblems(quality);
+    if (cols === 2 && rows === 4 && problems.length) throw new Error(`Форма требует доработки: ${problems.join('; ')}`);
     const atlasHeight = Math.max(...regions.map(r => r.bounds.height));
     const atlasWidth = regions.reduce((sum, r) => sum + r.bounds.width, 0);
     const atlas = document.createElement('canvas'); atlas.width = atlasWidth; atlas.height = atlasHeight;
@@ -42,11 +45,11 @@ generateButton.addEventListener('click', async () => {
       offsetX += width;
     }
     const png = await new Promise<Blob>((resolve, reject) => atlas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Не удалось создать PNG.')), 'image/png'));
-    const json = { version: 1, source: file.name, width: source.width, height: source.height, columns: cols, rows, seed, algorithm: 'seeded perturbed Voronoi', totalPixels: labels.length, coveredPixels: regions.reduce((sum, region) => sum + region.pixels, 0), minAreaRatio: Math.min(...regions.map(region => region.pixels / labels.length)), frames };
+    const json = { version: 1, source: file.name, width: source.width, height: source.height, columns: cols, rows, seed, algorithm: cols === 2 && rows === 4 ? 'authored smooth 2x4' : 'experimental smooth warped Voronoi', totalPixels: labels.length, coveredPixels: regions.reduce((sum, region) => sum + region.pixels, 0), minAreaRatio: Math.min(...regions.map(region => region.pixels / labels.length)), quality: quality.map(({ signature, ...metrics }) => metrics), qualityProblems: problems, frames };
     addDownload('Фрагменты PNG', URL.createObjectURL(png), `${stripExtension(file.name)}-pieces.png`);
     addDownload('Координаты JSON', URL.createObjectURL(new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' })), `${stripExtension(file.name)}-pieces.json`);
     preview.src = URL.createObjectURL(png); preview.hidden = false;
-    status.textContent = `${regions.length} частей. Покрытие: ${json.coveredPixels}/${json.totalPixels} пикселей. Минимальная площадь фрагмента: ${(json.minAreaRatio * 100).toFixed(1)}%.`;
+    status.textContent = `${regions.length} частей. Покрытие: ${json.coveredPixels}/${json.totalPixels} пикселей. Минимальная площадь фрагмента: ${(json.minAreaRatio * 100).toFixed(1)}%. Проверки формы: ${problems.length ? problems.join('; ') : 'пройдены'}.`;
     URL.revokeObjectURL(image.src);
   } catch (error) { status.textContent = error instanceof Error ? error.message : 'Ошибка генерации.'; }
   finally { generateButton.disabled = false; }
