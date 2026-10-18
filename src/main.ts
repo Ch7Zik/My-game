@@ -22,6 +22,7 @@ class PuzzleScene extends Phaser.Scene {
   private ui!: Phaser.GameObjects.Graphics;
   private menuArt: Phaser.GameObjects.Image | null = null;
   private guideImage: Phaser.GameObjects.Image | null = null;
+  private completeImage: Phaser.GameObjects.Image | null = null;
 
   constructor() { super('puzzle'); }
 
@@ -114,8 +115,9 @@ class PuzzleScene extends Phaser.Scene {
     if (this.mode === 'menu') { if (pointer.y > this.scale.height * 0.62 && pointer.y < this.scale.height * 0.86) this.startGame(); return; }
     if (this.mode === 'soon') { this.mode = 'menu'; this.draw(); return; }
     if (this.mode === 'complete') { if (canAdvance(true, this.nextButton().contains(pointer.x, pointer.y))) { this.mode = 'soon'; this.draw(); } return; }
-    if (pointer.y < 72 && pointer.x < 88) { this.mode = 'menu'; this.removePieces(); this.draw(); return; }
-    if (pointer.y < 82 && pointer.x > this.scale.width - 80) { this.showHint(); return; }
+    const header = this.headerRect();
+    if (pointer.y < 72 && pointer.x >= header.x && pointer.x < header.x + 78) { this.mode = 'menu'; this.removePieces(); this.draw(); return; }
+    if (pointer.y < 82 && pointer.x > header.x + header.width - 80 && pointer.x < header.x + header.width) { this.showHint(); return; }
     const x = pointer.x, y = pointer.y;
     const hit = [...this.pieces].reverse().find(piece => canDrag(piece.placed) && this.pieceContains(piece, x, y));
     if (!hit) return;
@@ -169,8 +171,8 @@ class PuzzleScene extends Phaser.Scene {
     // Replace all cutout textures with one exact copy of the source art.
     this.pieces.forEach(p => p.sprite.destroy()); this.pieces = [];
     this.guideImage?.destroy(); this.guideImage = null;
-    const whole = this.add.image(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2, 'whole-picture').setDepth(3).setDisplaySize(this.board.width, this.board.height).setAlpha(0);
-    this.tweens.add({ targets: whole, alpha: 1, duration: 750, ease: 'Sine.Out' });
+    this.completeImage = this.add.image(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2, 'whole-picture').setDepth(3).setDisplaySize(this.board.width, this.board.height).setAlpha(0);
+    this.tweens.add({ targets: this.completeImage, alpha: 1, duration: 750, ease: 'Sine.Out' });
     localStorage.setItem('mystic-puzzles-complete', 'true');
     this.cameras.main.flash(300, 255, 220, 143, false);
     this.draw();
@@ -188,9 +190,10 @@ class PuzzleScene extends Phaser.Scene {
   }
 
   private startGame() { this.menuArt?.destroy(); this.menuArt = null; this.mode = 'game'; this.layout(); this.preparePieces(); this.draw(); }
-  private removePieces() { this.pieces.forEach(p => p.sprite.destroy()); this.pieces = []; this.guideImage?.destroy(); this.guideImage = null; this.children.list.filter(c => c instanceof Phaser.GameObjects.Image && c.texture.key === 'whole-picture').forEach(c => c.destroy()); }
+  private removePieces() { this.pieces.forEach(p => p.sprite.destroy()); this.pieces = []; this.guideImage?.destroy(); this.guideImage = null; this.completeImage = null; this.children.list.filter(c => c instanceof Phaser.GameObjects.Image && c.texture.key === 'whole-picture').forEach(c => c.destroy()); }
   private persistProgress() { localStorage.setItem('mystic-puzzles-progress', JSON.stringify({ level: 1, placed: this.pieces.filter(p => p.placed).map(p => p.id) })); }
   private nextButton() { return new Phaser.Geom.Rectangle(this.scale.width * 0.16, this.scale.height - 76, this.scale.width * 0.68, 54); }
+  private headerRect() { const width = Math.min(this.scale.width - 24, this.board.width + 10 || 520); return { x: (this.scale.width - width) / 2, width }; }
 
   update() {
     if (this.mode === 'game' && this.hintPiece && this.time.now < this.hintUntil) {
@@ -218,7 +221,9 @@ class PuzzleScene extends Phaser.Scene {
   private drawMenu(w: number, h: number) {
     if (this.artLoaded) {
       if (!this.menuArt || !this.menuArt.active) this.menuArt = this.add.image(w / 2, h * 0.43, 'moonlit').setDepth(1);
-      this.menuArt.setVisible(true).setPosition(w / 2, h * 0.43).setDisplaySize(w, h * 0.83).setAlpha(0.82);
+      const artHeight = Math.min(h * 0.83, 780);
+      const artWidth = artHeight * this.art.naturalWidth / this.art.naturalHeight;
+      this.menuArt.setVisible(true).setPosition(w / 2, h * 0.43).setDisplaySize(artWidth, artHeight).setAlpha(0.82);
     }
     this.ui.fillStyle(0x06101d, 0.38); this.ui.fillRect(0, 0, w, h);
     this.txt(w / 2, h * 0.13, 'МИСТИЧЕСКИЕ', Math.min(34, w * 0.088), '#f5dfb3', true);
@@ -232,12 +237,13 @@ class PuzzleScene extends Phaser.Scene {
     this.layout();
     this.menuArt?.setVisible(false);
     if (this.mode === 'game' && this.guideImage) this.guideImage.setPosition(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2).setDisplaySize(this.board.width, this.board.height);
-    this.ui.fillStyle(0x142c42, 0.92); this.ui.fillRoundedRect(12, 8, w - 24, 64, 18);
-    this.txt(54, 39, '‹', 36, '#ffe0a0', true);
+    const header = this.headerRect();
+    this.ui.fillStyle(0x142c42, 0.92); this.ui.fillRoundedRect(header.x, 8, header.width, 64, 18);
+    this.txt(header.x + 42, 39, '‹', 36, '#ffe0a0', true);
     this.txt(w / 2, 24, 'УРОВЕНЬ 1', 15, '#f8e5bf', true);
     const stars = this.completeAmount >= 8 ? '★ ★ ★' : this.completeAmount >= 4 ? '★ ★ ☆' : this.completeAmount > 0 ? '★ ☆ ☆' : '☆ ☆ ☆';
     this.txt(w / 2, 49, stars, 18, '#ffc95e');
-    this.txt(w - 43, 38, '✦', 27, '#ffe08a', true);
+    this.txt(header.x + header.width - 42, 38, '✦', 27, '#ffe08a', true);
     if (this.artLoaded && this.board.width > 0) {
       this.ui.fillStyle(0x030a13, 0.62); this.ui.fillRoundedRect(this.board.x - 5, this.board.y - 5, this.board.width + 10, this.board.height + 10, 20);
       this.ui.lineStyle(1.5, 0xc99753, 0.82); this.ui.strokeRoundedRect(this.board.x - 5, this.board.y - 5, this.board.width + 10, this.board.height + 10, 20);
@@ -246,6 +252,7 @@ class PuzzleScene extends Phaser.Scene {
       }
     }
     if (this.mode === 'complete') {
+      this.completeImage?.setPosition(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2).setDisplaySize(this.board.width, this.board.height);
       this.txt(w / 2, this.board.y + this.board.height + 24, 'Картина ожила ✨', 17, '#ffe6b1', true);
       this.txt(w / 2, this.board.y + this.board.height + 48, 'Пусть этот вечер останется с тобой', 12, '#d7d1c6');
       this.button(w / 2, h - 48, Math.min(310, w * 0.72), 52, 'Следующий уровень', true);
