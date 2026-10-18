@@ -284,7 +284,7 @@ class PuzzleScene extends Phaser.Scene {
         this.txt(center, p.y + 335, 'Самые тёплые огни', 19, '#e9dac1');
         this.txt(center, p.y + 364, 'видны в тишине…', 19, '#e9dac1');
       }
-      this.txt(b.x + b.width / 2, b.y + b.height + (h < 700 ? 9 : 29), 'Самые тёплые огни видны в тишине…', h < 700 ? 13 : Math.min(16, w * .04), '#ffe8b8', true);
+      this.txt(b.x + b.width / 2, b.y + b.height + 29, 'Самые тёплые огни видны в тишине…', h < 700 ? 13 : Math.min(16, w * .04), '#ffe8b8', true);
       const next = this.nextButton(); this.button(next.centerX, next.centerY, next.width, next.height, 'Следующий уровень');
     } else {
       this.txt(b.x + b.width / 2, b.y + b.height + 27, `${count} / 8 собрано`, 16, '#f4d9a6', true);

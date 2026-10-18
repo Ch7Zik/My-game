@@ -12,7 +12,7 @@ export function looseScale(viewportWidth: number, viewportHeight: number): numbe
 export function gameLayout(w: number, h: number): { board: Rect; preview: Rect | null } {
   const desktop = w >= 1000 && w / h > 1.3;
   const top = h < 700 ? 83 : 94;
-  const foot = h < 700 ? 65 : 112;
+  const foot = h < 700 ? 94 : 112;
   const boardWidth = Math.max(190, Math.min(desktop ? 590 : w - 20, (h - top - foot) * 2 / 3));
   const boardHeight = boardWidth * 1.5;
   const y = top + Math.max(0, (h - top - foot - boardHeight) * (desktop ? .5 : .30));
