@@ -195,7 +195,7 @@ class PuzzleScene extends Phaser.Scene {
   }
   private persistProgress() { localStorage.setItem('mystic-puzzles-progress', JSON.stringify({ level: 1, placed: this.pieces.filter(p => p.placed).map(p => p.id) })); }
   private menuButton() { const w = this.scale.width, h = this.scale.height; return new Phaser.Geom.Rectangle(w / 2 - Math.min(296, w * .7) / 2, h - (h < 700 ? 112 : 138), Math.min(296, w * .7), 62); }
-  private nextButton() { const w = this.scale.width, h = this.scale.height; return new Phaser.Geom.Rectangle(w / 2 - Math.min(310, w * .76) / 2, h - 65, Math.min(310, w * .76), 52); }
+  private nextButton() { const w = this.scale.width, h = this.scale.height; return new Phaser.Geom.Rectangle(w / 2 - Math.min(310, w * .76) / 2, h < 700 ? h - 48 : h - 65, Math.min(310, w * .76), h < 700 ? 46 : 52); }
   private backButton() { const h = this.scale.height; return new Phaser.Geom.Circle(this.headerCenter() - this.headerWidth() / 2 + 31, h < 700 ? 36 : 43, 25); }
   private hintButton() { const h = this.scale.height; return new Phaser.Geom.Circle(this.headerCenter() + this.headerWidth() / 2 - 31, h < 700 ? 36 : 43, 25); }
   private headerCenter() { return this.preview ? (this.board.x + this.preview.x + this.preview.width) / 2 : this.scale.width / 2; }
@@ -284,7 +284,7 @@ class PuzzleScene extends Phaser.Scene {
         this.txt(center, p.y + 335, 'Самые тёплые огни', 19, '#e9dac1');
         this.txt(center, p.y + 364, 'видны в тишине…', 19, '#e9dac1');
       }
-      this.txt(b.x + b.width / 2, b.y + b.height + 29, 'Самые тёплые огни видны в тишине…', Math.min(16, w * .04), '#ffe8b8', true);
+      this.txt(b.x + b.width / 2, b.y + b.height + (h < 700 ? 9 : 29), 'Самые тёплые огни видны в тишине…', h < 700 ? 13 : Math.min(16, w * .04), '#ffe8b8', true);
       const next = this.nextButton(); this.button(next.centerX, next.centerY, next.width, next.height, 'Следующий уровень');
     } else {
       this.txt(b.x + b.width / 2, b.y + b.height + 27, `${count} / 8 собрано`, 16, '#f4d9a6', true);
