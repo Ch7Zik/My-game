@@ -10,6 +10,11 @@ const LEVEL_ONE_SITES: Point[] = [
   { x: .27, y: .78 }, { x: .59, y: .61 }, { x: .73, y: .79 },
 ];
 const LEVEL_ONE_WEIGHTS = [.003, .004, -.005, -.006, -.006, .006, -.018, .003];
+const FOUR_SITES: Point[] = [{ x: .23, y: .23 }, { x: .77, y: .26 }, { x: .29, y: .77 }, { x: .72, y: .73 }];
+const SIX_SITES: Point[] = [
+  { x: .21, y: .16 }, { x: .78, y: .18 }, { x: .28, y: .48 },
+  { x: .72, y: .47 }, { x: .19, y: .82 }, { x: .78, y: .81 },
+];
 const LOBES = [
   { id: 0, x: .28, y: .30, rx: .15, ry: .13, power: .031 },
   { id: 1, x: .48, y: .32, rx: .16, ry: .13, power: .041 },
@@ -42,22 +47,30 @@ function warp(u: number, v: number): Point {
 export function createRegions(width: number, height: number, cols = 2, rows = 4, seed = 713): { labels: Uint8Array; regions: PieceRegion[] } {
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 8 || height < 8 || !Number.isInteger(cols * rows) || cols < 1 || rows < 1 || cols * rows > 254) throw new Error('Invalid puzzle dimensions');
   const count = cols * rows;
+  const authored = cols === 2 && (rows === 2 || rows === 3 || rows === 4);
+  const curatedSites = count === 4 ? FOUR_SITES : count === 6 ? SIX_SITES : LEVEL_ONE_SITES;
   const labels = new Uint8Array(width * height);
   const sums = Array.from({ length: count }, () => ({ x: 0, y: 0, n: 0, minX: width, minY: height, maxX: 0, maxY: 0 }));
   const sites = Array.from({ length: count }, (_, i) => ({ x: ((i % cols) + .5) / cols, y: (Math.floor(i / cols) + .5) / rows }));
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     const u = (x + .5) / width, v = (y + .5) / height;
     let id: number;
-    if (cols === 2 && rows === 4) {
+    if (authored) {
       const p = warp(u, v);
+      if (count === 4) {
+        // Broad waves give the first two difficulty tiers recognisable, shared
+        // organic borders while keeping every silhouette thick and connected.
+        p.x += .070 * Math.sin(v * Math.PI * 2.5 + seed * .002) * Math.sin(u * Math.PI);
+        p.y += .050 * Math.sin(u * Math.PI * 2.9 + seed * .001) * Math.sin(v * Math.PI);
+      }
       id = 0; let best = Infinity;
-      for (let i = 0; i < LEVEL_ONE_SITES.length; i++) {
-        const site = LEVEL_ONE_SITES[i];
+      for (let i = 0; i < curatedSites.length; i++) {
+        const site = curatedSites[i];
         const dx = (p.x - site.x) * 1.02, dy = p.y - site.y;
-        let score = dx * dx + dy * dy + LEVEL_ONE_WEIGHTS[i];
-        for (const lobe of LOBES) if (lobe.id === i) {
+        let score = dx * dx + dy * dy + (count === 8 ? LEVEL_ONE_WEIGHTS[i] : .007 * Math.sin(seed * .012 + i * 2.3));
+        for (const lobe of LOBES) if (lobe.id % count === i) {
           const lx = (u - lobe.x) / lobe.rx, ly = (v - lobe.y) / lobe.ry;
-          score -= lobe.power * Math.exp(-2 * (lx * lx + ly * ly));
+          score -= lobe.power * (count === 8 ? 1 : .75) * Math.exp(-2 * (lx * lx + ly * ly));
         }
         if (score < best) { best = score; id = i; }
       }
@@ -77,7 +90,7 @@ export function createRegions(width: number, height: number, cols = 2, rows = 4,
     if (x < s.minX) s.minX = x; if (x > s.maxX) s.maxX = x;
     if (y < s.minY) s.minY = y; if (y > s.maxY) s.maxY = y;
   }
-  if (cols === 2 && rows === 4) {
+  if (authored) {
     const smooth = smoothLabels(labels, width, height, count, Math.max(2, Math.round(width * .032)));
     labels.set(smooth);
     for (const s of sums) { s.x = 0; s.y = 0; s.n = 0; s.minX = width; s.minY = height; s.maxX = 0; s.maxY = 0; }

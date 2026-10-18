@@ -3,16 +3,25 @@ import Phaser from 'phaser';
 import { createRegions, inspectRegions, qualityProblems, type PieceRegion, type Point } from './geometry';
 import { canAdvance, canDrag, isComplete, shouldSnap, wasDragged } from './puzzleRules';
 import { gameLayout, looseScale, startPosition, SLOT_ORDER, type Rect } from './layout';
+import { LEVELS, levelById, type LevelConfig } from './levels';
+import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, saveProgress, selectLevel, type Progress } from './progress';
 import './style.css';
 
 type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion; placed: boolean; home: Point; slot: number; hit: Uint8Array; texW: number; texH: number; baseW: number; baseH: number };
-const ART = '/assets/moonlit-cottage.png';
-
+const safeStorage = {
+  getItem(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } },
+  setItem(key: string, value: string): void { try { localStorage.setItem(key, value); } catch { /* Storage may be disabled. */ } },
+};
 class PuzzleScene extends Phaser.Scene {
   private art!: HTMLImageElement;
   private artLoaded = false;
+  private level: LevelConfig = LEVELS[0];
+  private progress: Progress = restoreProgress(safeStorage);
   private pieces: Piece[] = [];
-  private mode: 'menu' | 'game' | 'complete' | 'soon' = 'menu';
+  private mode: 'menu' | 'levels' | 'gallery' | 'view' | 'game' | 'complete' = 'menu';
+  private viewedLevel = 1;
+  private menuPressed = false;
+  private tutorialDone = false;
   private dragging: Piece | null = null;
   private pointerOffset: Point = { x: 0, y: 0 };
   private dragOrigin: Point = { x: 0, y: 0 };
@@ -25,16 +34,19 @@ class PuzzleScene extends Phaser.Scene {
   private chrome!: Phaser.GameObjects.Graphics;
   private fx!: Phaser.GameObjects.Graphics;
   private menuArt: Phaser.GameObjects.Image | null = null;
+  private uiImages: Phaser.GameObjects.Image[] = [];
   private guideImage: Phaser.GameObjects.Image | null = null;
   private previewImage: Phaser.GameObjects.Image | null = null;
   private completeImage: Phaser.GameObjects.Image | null = null;
   private raster = { width: 0, height: 0 };
 
   constructor() { super('puzzle'); }
-  preload() { this.load.image('moonlit', ART); }
+  preload() {
+    this.load.image('menu-forest', '/assets/menu-forest.webp');
+    this.load.image('menu-forest-wide', '/assets/menu-forest-wide.webp');
+    for (const level of LEVELS) this.load.image(`art-${level.id}`, level.art);
+  }
   create() {
-    this.art = new Image(); this.art.src = ART;
-    this.art.onload = () => { this.artLoaded = true; if (this.mode === 'game') this.preparePieces(); this.draw(); };
     this.bg = this.add.graphics().setDepth(0);
     this.boardG = this.add.graphics().setDepth(2);
     this.chrome = this.add.graphics().setDepth(120);
@@ -61,7 +73,7 @@ class PuzzleScene extends Phaser.Scene {
     const sctx = source.getContext('2d', { willReadFrequently: true })!;
     sctx.drawImage(this.art, 0, 0, cw, ch);
     const sourcePixels = sctx.getImageData(0, 0, cw, ch).data;
-    const { labels, regions } = createRegions(cw, ch);
+    const { labels, regions } = createRegions(cw, ch, this.level.columns, this.level.rows, this.level.seed);
     const quality = inspectRegions(cw, ch, labels, regions);
     const problems = qualityProblems(quality);
     if (problems.length) console.warn('Puzzle geometry:', problems);
@@ -102,10 +114,10 @@ class PuzzleScene extends Phaser.Scene {
       this.textures.addCanvas(`piece-clean-${region.id}`, clean);
       this.textures.addCanvas(`piece-loose-${region.id}`, loose);
       const sprite = this.add.image(0, 0, `piece-loose-${region.id}`).setDepth(10 + region.id);
-      const piece: Piece = { id: region.id, sprite, region, placed: false, home: { x: 0, y: 0 }, slot: SLOT_ORDER[region.id], hit, texW: tw, texH: th, baseW: 0, baseH: 0 };
+      const piece: Piece = { id: region.id, sprite, region, placed: false, home: { x: 0, y: 0 }, slot: this.level.slots[region.id] ?? SLOT_ORDER[region.id], hit, texW: tw, texH: th, baseW: 0, baseH: 0 };
       this.pieces.push(piece);
     }
-    this.reflowPieces(); this.mode = 'game'; this.persistProgress(); this.draw();
+    this.reflowPieces(); this.mode = 'game'; this.draw();
   }
 
   private reflowPieces() {
@@ -129,13 +141,35 @@ class PuzzleScene extends Phaser.Scene {
   private pointerDown(pointer: Phaser.Input.Pointer) {
     const { x, y } = pointer;
     if (this.mode === 'menu') {
-      if (this.menuButton().contains(x, y)) this.startGame();
-      else if (this.galleryButton().contains(x, y)) { this.mode = 'soon'; this.draw(); }
+      if (this.menuButton().contains(x, y)) {
+        const next = nextUnplayed(this.progress);
+        this.menuPressed = true; this.draw();
+        this.time.delayedCall(100, () => {
+          this.menuPressed = false;
+          if (next > LEVELS.length) { this.mode = 'levels'; this.draw(); } else this.startGame(next);
+        });
+      } else if (this.levelsButton().contains(x, y)) { this.mode = 'levels'; this.draw(); }
+      else if (this.galleryButton().contains(x, y)) { this.mode = 'gallery'; this.draw(); }
       return;
     }
-    if (this.mode === 'soon') { this.mode = 'menu'; this.draw(); return; }
-    if (this.backButton().contains(x, y)) { this.mode = 'menu'; this.removePieces(); this.draw(); return; }
-    if (this.mode === 'complete') { if (canAdvance(true, this.nextButton().contains(x, y))) { this.removePieces(); this.mode = 'soon'; this.draw(); } return; }
+    if (this.mode === 'levels' || this.mode === 'gallery') {
+      if (this.backButton().contains(x, y)) { this.mode = 'menu'; this.draw(); return; }
+      const id = this.cardAt(x, y);
+      if (id && this.mode === 'levels' && isUnlocked(this.progress, id)) this.startGame(id);
+      else if (id && this.mode === 'gallery' && isInGallery(this.progress, id)) { this.viewedLevel = id; this.mode = 'view'; this.draw(); }
+      return;
+    }
+    if (this.mode === 'view') { if (this.backButton().contains(x, y)) { this.mode = 'gallery'; this.draw(); } return; }
+    if (this.backButton().contains(x, y)) { this.mode = 'levels'; this.removePieces(); this.draw(); return; }
+    if (this.mode === 'complete') {
+      if (this.hintButton().contains(x, y)) { this.removePieces(); this.mode = 'gallery'; this.draw(); return; }
+      if (canAdvance(true, this.nextButton().contains(x, y))) {
+        const next = this.level.id + 1;
+        if (next <= LEVELS.length) this.startGame(next);
+        else { this.removePieces(); this.mode = 'gallery'; this.draw(); }
+      }
+      return;
+    }
     if (this.hintButton().contains(x, y)) { this.showHint(); return; }
     const hit = [...this.pieces].sort((a, b) => b.sprite.depth - a.sprite.depth).find(p => canDrag(p.placed) && this.pieceContains(p, x, y));
     if (!hit) return;
@@ -161,7 +195,7 @@ class PuzzleScene extends Phaser.Scene {
     p.sprite.setDisplaySize(p.baseW * scale, p.baseH * scale);
     const radius = Math.max(28, this.board.width * .14);
     if (moved && shouldSnap({ x: p.sprite.x, y: p.sprite.y }, p.home, radius)) {
-      p.placed = true; this.persistProgress();
+      p.placed = true; if (this.level.id === 1) this.tutorialDone = true;
       this.tweens.add({ targets: p.sprite, x: p.home.x, y: p.home.y, displayWidth: p.baseW, displayHeight: p.baseH, duration: 250, ease: 'Sine.Out', onComplete: () => {
         p.sprite.setTexture(`piece-clean-${p.id}`).setDisplaySize(p.baseW, p.baseH);
         this.playChime();
@@ -185,7 +219,8 @@ class PuzzleScene extends Phaser.Scene {
     this.mode = 'complete';
     this.completeImage = this.add.image(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2, 'whole-picture').setDepth(60).setDisplaySize(this.board.width, this.board.height).setAlpha(0);
     this.tweens.add({ targets: this.completeImage, alpha: 1, duration: 650, ease: 'Sine.Out', onComplete: () => { this.pieces.forEach(p => p.sprite.setVisible(false)); this.guideImage?.setVisible(false); } });
-    localStorage.setItem('mystic-puzzles-complete', 'true');
+    this.progress = completeLevel(this.progress, this.level.id);
+    saveProgress(safeStorage, this.progress);
     this.draw();
   }
   private playChime() {
@@ -198,16 +233,29 @@ class PuzzleScene extends Phaser.Scene {
       osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + .5); osc.onended = () => void ctx.close();
     } catch { /* Sound is optional on devices without Web Audio. */ }
   }
-  private startGame() { this.menuArt?.destroy(); this.menuArt = null; this.mode = 'game'; this.preparePieces(); this.draw(); }
+  private startGame(id: number) {
+    if (!isUnlocked(this.progress, id)) return;
+    this.removePieces();
+    this.level = levelById(id);
+    this.progress = selectLevel(this.progress, id);
+    saveProgress(safeStorage, this.progress);
+    this.mode = 'game'; this.artLoaded = false; this.tutorialDone = false;
+    const selected = id;
+    this.art = new Image();
+    this.art.onload = () => { if (this.mode !== 'game' || this.level.id !== selected) return; this.artLoaded = true; this.preparePieces(); this.draw(); };
+    this.art.src = this.level.art;
+    this.draw();
+  }
   private removePieces() {
     this.dragging = null; this.hintPiece = null; this.pieces.forEach(p => p.sprite.destroy()); this.pieces = [];
     this.guideImage?.destroy(); this.guideImage = null; this.previewImage?.destroy(); this.previewImage = null;
     this.completeImage?.destroy(); this.completeImage = null;
-    for (let id = 0; id < 8; id++) { this.textures.remove(`piece-clean-${id}`); this.textures.remove(`piece-loose-${id}`); }
+    for (let id = 0; id < 8; id++) { if (this.textures.exists(`piece-clean-${id}`)) this.textures.remove(`piece-clean-${id}`); if (this.textures.exists(`piece-loose-${id}`)) this.textures.remove(`piece-loose-${id}`); }
+    if (this.textures.exists('whole-picture')) this.textures.remove('whole-picture');
   }
-  private persistProgress() { localStorage.setItem('mystic-puzzles-progress', JSON.stringify({ level: 1, placed: this.pieces.filter(p => p.placed).map(p => p.id) })); }
-  private menuButton() { const w = this.scale.width, h = this.scale.height; return new Phaser.Geom.Rectangle(w / 2 - Math.min(296, w * .7) / 2, h - (h < 700 ? 112 : 138), Math.min(296, w * .7), 62); }
-  private galleryButton() { const w = this.scale.width, h = this.scale.height, width = Math.min(230, w * .58); return new Phaser.Geom.Rectangle(w / 2 - width / 2, h < 700 ? h - 40 : h - 64, width, h < 700 ? 33 : 39); }
+  private menuButton() { const w = this.scale.width, h = this.scale.height, width = Math.min(w >= 900 ? 340 : 296, w * .7); return new Phaser.Geom.Rectangle(w / 2 - width / 2, h - (h < 700 ? 112 : 138), width, w >= 900 ? 68 : 62); }
+  private galleryButton() { const w = this.scale.width, h = this.scale.height, width = Math.min(w >= 900 ? 170 : 155, w * .41); return new Phaser.Geom.Rectangle(w / 2 + 7, h < 700 ? h - 49 : h - 73, width, h < 700 ? 38 : 43); }
+  private levelsButton() { const w = this.scale.width, h = this.scale.height, width = Math.min(w >= 900 ? 170 : 155, w * .41); return new Phaser.Geom.Rectangle(w / 2 - width - 7, h < 700 ? h - 49 : h - 73, width, h < 700 ? 38 : 43); }
   private nextButton() { const w = this.scale.width, h = this.scale.height; return new Phaser.Geom.Rectangle(w / 2 - Math.min(310, w * .76) / 2, h < 700 ? h - 48 : h - 65, Math.min(310, w * .76), h < 700 ? 46 : 52); }
   private backButton() { const h = this.scale.height; return new Phaser.Geom.Circle(this.headerCenter() - this.headerWidth() / 2 + 31, h < 700 ? 36 : 43, 25); }
   private hintButton() { const h = this.scale.height; return new Phaser.Geom.Circle(this.headerCenter() + this.headerWidth() / 2 - 31, h < 700 ? 36 : 43, 25); }
@@ -230,16 +278,28 @@ class PuzzleScene extends Phaser.Scene {
       this.fx.lineStyle(3, 0xffda7c, .8).strokeCircle(p.home.x, p.home.y, 31 + Math.sin(this.time.now / 120) * 4);
       this.fx.lineStyle(1, 0xffeec3, .6).strokeCircle(p.home.x, p.home.y, 40 + Math.sin(this.time.now / 120) * 4);
     }
+    if (this.mode === 'game' && this.level.id === 1 && !this.tutorialDone && !this.dragging && this.pieces.length) {
+      const p = this.pieces[0];
+      const phase = (Math.sin(this.time.now / 500) + 1) / 2;
+      const dx = p.home.x - p.sprite.x, dy = p.home.y - p.sprite.y, length = Math.hypot(dx, dy) || 1;
+      const x = p.sprite.x + dx / length * phase * 35, y = p.sprite.y + dy / length * phase * 35;
+      this.fx.lineStyle(2, 0xffdc86, .5).lineBetween(p.sprite.x, p.sprite.y, p.sprite.x + dx / length * 48, p.sprite.y + dy / length * 48);
+      this.fx.fillStyle(0xffedba, .74).fillCircle(x, y, 10);
+      this.fx.lineStyle(2, 0x9c6e38, .9).strokeCircle(x, y, 10);
+    }
   }
   private draw() {
     if (!this.bg) return;
     const w = this.scale.width, h = this.scale.height;
     this.layout(); this.bg.clear(); this.boardG.clear(); this.chrome.clear();
     this.children.list.filter(c => c.getData('uiText')).forEach(c => c.destroy());
+    this.uiImages.forEach(image => image.destroy()); this.uiImages = [];
+    this.menuArt?.setVisible(this.mode === 'menu');
     this.bg.fillGradientStyle(0x050e1c, 0x050e1c, 0x132d43, 0x132d43, 1).fillRect(0, 0, w, h);
     this.drawAtmosphere(w, h);
     if (this.mode === 'menu') this.drawMenu(w, h);
-    else if (this.mode === 'soon') this.drawSoon(w, h);
+    else if (this.mode === 'levels' || this.mode === 'gallery') this.drawCards(w, h);
+    else if (this.mode === 'view') this.drawGalleryView(w, h);
     else this.drawGame(w, h);
   }
   private drawAtmosphere(w: number, h: number) {
@@ -249,14 +309,16 @@ class PuzzleScene extends Phaser.Scene {
     for (let i = 0; i < 5; i++) this.bg.strokeCircle(w * (i % 2 ? .93 : .07), h * (.15 + i * .2), 32 + i * 11);
   }
   private drawMenu(w: number, h: number) {
-    if (this.artLoaded) {
-      if (!this.menuArt || !this.menuArt.active) this.menuArt = this.add.image(w / 2, h / 2, 'moonlit').setDepth(1);
-      const artW = Math.min(w * (w > 700 ? .52 : .97), (h - 132) * 2 / 3);
-      this.menuArt.setVisible(true).setPosition(w / 2, h * .51).setDisplaySize(artW, artW * 1.5).setAlpha(.95);
-      this.boardG.lineStyle(2, 0xc7914b, .8).strokeRoundedRect(w / 2 - artW / 2 - 3, h * .51 - artW * .75 - 3, artW + 6, artW * 1.5 + 6, 18);
-      this.boardG.lineStyle(1, 0xffe2a3, .34).strokeRoundedRect(w / 2 - artW / 2 + 1, h * .51 - artW * .75 + 1, artW - 2, artW * 1.5 - 2, 15);
+    const key = w >= 900 ? 'menu-forest-wide' : 'menu-forest';
+    if (!this.menuArt || !this.menuArt.active || this.menuArt.texture.key !== key) {
+      this.menuArt?.destroy(); this.menuArt = this.add.image(w / 2, h / 2, key).setDepth(1);
     }
-    const signW = Math.min(340, w - 30), signH = h < 700 ? 122 : 142, signY = h < 700 ? 91 : 109;
+    const source = this.textures.get(key).getSourceImage() as HTMLImageElement;
+    const scale = Math.max(w / source.width, h / source.height);
+    this.menuArt.setVisible(true).setPosition(w / 2, h / 2).setDisplaySize(source.width * scale, source.height * scale);
+    this.boardG.fillStyle(0x03101a, .3).fillRect(0, 0, w, h * .27);
+    this.boardG.fillStyle(0x020a11, .55).fillRect(0, h * .78, w, h * .22);
+    const signW = Math.min(w >= 900 ? 500 : 340, w - 30), signH = h < 700 ? 122 : w >= 900 ? 174 : 142, signY = h < 700 ? 91 : w >= 900 ? 130 : 109;
     for (const side of [-1, 1]) {
       const lx = w / 2 + side * (signW / 2 - 29);
       this.chrome.lineStyle(2, 0xb88546, .8).lineBetween(lx, 1, lx, signY - signH / 2 + 17);
@@ -272,14 +334,70 @@ class PuzzleScene extends Phaser.Scene {
     this.chrome.fillStyle(0xffe1a0, .15).fillRoundedRect(w / 2 - signW / 2 + 13, signY - signH / 2 + 13, signW - 26, 7, 3);
     for (const side of [-1, 1]) { this.chrome.fillStyle(0xffdc8c, .8).fillCircle(w / 2 + side * (signW / 2 - 18), signY, 3); }
     for (const side of [-1, 1]) this.lantern(w / 2 + side * (signW / 2 - 29), signY - signH / 2 + 19);
-    this.txt(w / 2, signY - 25, 'Мистические', Math.min(37, w * .097), '#ffe1a1', true);
-    this.txt(w / 2, signY + 26, 'Пазлы', Math.min(55, w * .145), '#ffd177', true);
-    this.txt(w / 2, h - (h < 700 ? 144 : 174), 'Собирай волшебные картины', Math.min(17, w * .043), '#fff0cc', true);
-    const button = this.menuButton(); this.button(button.centerX, button.centerY, button.width, button.height, 'Играть');
-    const gallery = this.galleryButton();
-    this.chrome.fillStyle(0x302215, .9).fillRoundedRect(gallery.x, gallery.y, gallery.width, gallery.height, 11);
-    this.chrome.lineStyle(1.2, 0xc59455, .85).strokeRoundedRect(gallery.x + 1, gallery.y + 1, gallery.width - 2, gallery.height - 2, 10);
-    this.txt(gallery.centerX, gallery.centerY, 'Галерея · скоро', h < 700 ? 13 : 15, '#f4ddb4', true);
+    this.txt(w / 2, signY - (w >= 900 ? 31 : 25), 'Мистические', Math.min(w >= 900 ? 52 : 37, w * .097), '#ffe1a1', true);
+    this.txt(w / 2, signY + (w >= 900 ? 36 : 26), 'Пазлы', Math.min(w >= 900 ? 72 : 55, w * .145), '#ffd177', true);
+    this.txt(w / 2, h - (h < 700 ? 159 : 184), 'Собирай волшебные картины', Math.min(w >= 900 ? 21 : 17, w * .043), '#fff0cc', true);
+    const button = this.menuButton(); this.button(button.centerX, button.centerY + (this.menuPressed ? 3 : 0), button.width, button.height - (this.menuPressed ? 4 : 0), 'Играть');
+    for (const [rect, label] of [[this.levelsButton(), 'Уровни'], [this.galleryButton(), 'Галерея']] as const) {
+      this.chrome.fillStyle(0x302215, .94).fillRoundedRect(rect.x, rect.y, rect.width, rect.height, 12);
+      this.chrome.lineStyle(1.4, 0xd4a463, .9).strokeRoundedRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2, 11);
+      this.txt(rect.centerX, rect.centerY, label, h < 700 ? 15 : 17, '#f4ddb4', true);
+    }
+  }
+  private cardRects(): Phaser.Geom.Rectangle[] {
+    const w = this.scale.width, h = this.scale.height;
+    if (w >= 900) {
+      const gap = 15, group = Math.min(w - 80, 1380), width = (group - gap * 4) / 5;
+      return LEVELS.map((_, i) => new Phaser.Geom.Rectangle((w - group) / 2 + i * (width + gap), Math.max(135, (h - 420) / 2), width, 420));
+    }
+    const top = h < 700 ? 78 : 112, gap = h < 700 ? 7 : 11;
+    const height = Math.min(116, (h - top - 69 - gap * 4) / 5);
+    return LEVELS.map((_, i) => new Phaser.Geom.Rectangle(14, top + i * (height + gap), w - 28, height));
+  }
+  private cardAt(x: number, y: number): number | null {
+    const index = this.cardRects().findIndex(rect => rect.contains(x, y));
+    return index < 0 ? null : LEVELS[index].id;
+  }
+  private drawCards(w: number, h: number) {
+    const isGallery = this.mode === 'gallery';
+    const back = this.backButton(); this.iconCircle(back.x, back.y); this.backArrow(back.x, back.y);
+    this.txt(w / 2, h < 700 ? 37 : 45, isGallery ? 'Галерея картин' : 'Выбор уровня', Math.min(28, w * .07), '#ffe1a0', true);
+    const desktop = w >= 900;
+    const rects = this.cardRects();
+    for (let index = 0; index < LEVELS.length; index++) {
+      const level = LEVELS[index], r = rects[index];
+      const open = isGallery ? isInGallery(this.progress, level.id) : isUnlocked(this.progress, level.id);
+      const done = this.progress.completed.includes(level.id);
+      this.boardG.fillStyle(0x050d17, .85).fillRoundedRect(r.x + 2, r.y + 5, r.width, r.height, 15);
+      this.boardG.fillGradientStyle(0x344456, 0x283944, 0x142b37, 0x14212d, .96).fillRoundedRect(r.x, r.y, r.width, r.height, 14);
+      this.boardG.lineStyle(2, open ? 0xd5a15c : 0x617080, open ? .95 : .65).strokeRoundedRect(r.x, r.y, r.width, r.height, 14);
+      const imageW = desktop ? r.width - 16 : Math.min(70, r.height * .73);
+      const imageH = desktop ? r.height - 86 : r.height - 12;
+      const imageX = desktop ? r.centerX : r.x + 9 + imageW / 2;
+      const imageY = desktop ? r.y + 8 + imageH / 2 : r.centerY;
+      const thumbnail = this.add.image(imageX, imageY, `art-${level.id}`).setDepth(5).setDisplaySize(imageW, imageH);
+      this.uiImages.push(thumbnail);
+      this.chrome.lineStyle(1.4, 0xffdda0, open ? .8 : .35).strokeRoundedRect(imageX - imageW / 2, imageY - imageH / 2, imageW, imageH, 7);
+      if (!open) this.chrome.fillStyle(0x020812, .7).fillRoundedRect(imageX - imageW / 2, imageY - imageH / 2, imageW, imageH, 7);
+      const tx = desktop ? r.centerX : r.x + imageW + 24;
+      this.txt(tx, desktop ? r.y + r.height - 65 : r.y + r.height * .30, `Уровень ${level.id}`, desktop ? 18 : 17, open ? '#ffe4ac' : '#b4b8ba', true, desktop ? 'center' : 'left');
+      this.txt(tx, desktop ? r.y + r.height - 40 : r.y + r.height * .56, level.title, desktop ? 15 : Math.min(15, w * .039), open ? '#f6ead4' : '#a6b0b5', false, desktop ? 'center' : 'left');
+      if (done) this.drawStars(desktop ? r.centerX : r.x + r.width - 51, desktop ? r.y + r.height - 18 : r.y + r.height * .77, 3, 10);
+      else if (!open) this.drawLock(desktop ? r.centerX : r.x + r.width - 39, desktop ? r.y + r.height - 17 : r.centerY);
+      else if (!isGallery) this.txt(desktop ? r.centerX : r.x + r.width - 51, desktop ? r.y + r.height - 17 : r.y + r.height * .78, 'Открыт', 12, '#b9d39c', true);
+    }
+    this.txt(w / 2, h - 22, isGallery ? 'Собранные картины можно рассмотреть целиком' : 'Следующая картина открывается после сборки', Math.min(14, w * .034), '#dfd0af');
+  }
+  private drawGalleryView(w: number, h: number) {
+    const level = levelById(this.viewedLevel);
+    const back = this.backButton(); this.iconCircle(back.x, back.y); this.backArrow(back.x, back.y);
+    this.txt(w / 2, h < 700 ? 37 : 45, level.title, Math.min(26, w * .067), '#ffe1a0', true);
+    const width = Math.min(w - 34, (h - (h < 700 ? 174 : 206)) * 2 / 3, 530), height = width * 1.5;
+    const top = Math.max(h < 700 ? 73 : 91, (h - height - 54) / 2);
+    const view = this.add.image(w / 2, top + height / 2, `art-${level.id}`).setDepth(5).setDisplaySize(width, height);
+    this.uiImages.push(view);
+    this.chrome.lineStyle(3, 0xd5a365, .95).strokeRoundedRect(w / 2 - width / 2 - 4, top - 4, width + 8, height + 8, 10);
+    this.txt(w / 2, Math.min(h - 31, top + height + 28), level.phrase, Math.min(16, w * .039), '#ffe4b8', true);
   }
   private drawGame(w: number, h: number) {
     this.menuArt?.setVisible(false);
@@ -308,29 +426,27 @@ class PuzzleScene extends Phaser.Scene {
     this.chrome.fillStyle(0xffd695, .1).fillRoundedRect(hx - hw / 2 + 10, 12, hw - 20, 3, 2);
     const back = this.backButton(), hint = this.hintButton();
     this.iconCircle(back.x, back.y); this.iconCircle(hint.x, hint.y);
-    this.txt(back.x, back.y - 1, '‹', 37, '#ffe5ae', true);
-    this.bulb(hint.x, hint.y);
+    this.backArrow(back.x, back.y);
+    if (this.mode === 'complete') this.galleryIcon(hint.x, hint.y); else this.bulb(hint.x, hint.y);
     const plaqueW = Math.min(158, hw - 135);
     this.chrome.fillStyle(0x48301b, .95).fillRoundedRect(hx - plaqueW / 2, 13, plaqueW, hy * 2 - 19, 9);
     this.chrome.lineStyle(1.2, 0xe2ad62, .88).strokeRoundedRect(hx - plaqueW / 2 + 2, 15, plaqueW - 4, hy * 2 - 23, 8);
     this.chrome.lineStyle(1, 0xffd489, .17).lineBetween(hx - plaqueW / 2 + 13, 21, hx + plaqueW / 2 - 13, 20);
-    this.txt(hx, h < 700 ? 24 : 29, 'Уровень 1', h < 700 ? 13 : 15, '#fff2d4', true);
+    this.txt(hx, h < 700 ? 24 : 29, this.mode === 'complete' && this.level.id === LEVELS.length ? 'Подборка собрана' : `Уровень ${this.level.id}`, h < 700 ? 13 : 15, '#fff2d4', true);
     const count = this.pieces.filter(p => p.placed).length;
-    const stars = this.mode === 'complete' ? '★  ★  ★' : count >= 5 ? '★  ★  ☆' : count > 0 ? '★  ☆  ☆' : '☆  ☆  ☆';
-    this.txt(hx, h < 700 ? 48 : 58, stars, 20, '#ffcf69', true);
+    this.drawStars(hx, h < 700 ? 48 : 58, this.mode === 'complete' ? 3 : 0, 10);
     if (this.mode === 'complete') {
       if (this.preview) {
         const p = this.preview, center = p.x + p.width / 2;
         this.boardG.fillGradientStyle(0x142b3b, 0x142b3b, 0x07131f, 0x07131f, .8).fillRoundedRect(p.x - 8, p.y + 80, p.width + 16, p.height - 160, 18);
         this.boardG.lineStyle(1.5, 0xc69553, .75).strokeRoundedRect(p.x - 8, p.y + 80, p.width + 16, p.height - 160, 18);
         this.boardG.lineStyle(1, 0xffdca0, .25).strokeRoundedRect(p.x - 3, p.y + 85, p.width + 6, p.height - 170, 14);
-        this.txt(center, p.y + 190, '✦  ★  ★  ★  ✦', 30, '#ffdc8f', true);
-        this.txt(center, p.y + 265, 'Картина ожила', 30, '#ffe5b1', true);
-        this.txt(center, p.y + 335, 'Самые тёплые огни', 19, '#e9dac1');
-        this.txt(center, p.y + 364, 'видны в тишине…', 19, '#e9dac1');
+        this.drawStars(center, p.y + 190, 3, 18);
+        this.txt(center, p.y + 265, this.level.id === LEVELS.length ? 'Подборка собрана' : 'Картина ожила', 30, '#ffe5b1', true);
+        this.txt(center, p.y + 335, this.level.title, 19, '#e9dac1');
       }
-      this.txt(b.x + b.width / 2, b.y + b.height + 29, 'Самые тёплые огни видны в тишине…', h < 700 ? 13 : Math.min(16, w * .04), '#ffe8b8', true);
-      const next = this.nextButton(); this.button(next.centerX, next.centerY, next.width, next.height, 'Следующий уровень');
+      this.txt(b.x + b.width / 2, b.y + b.height + 29, this.level.phrase, h < 700 ? 12 : Math.min(16, w * .04), '#ffe8b8', true);
+      const next = this.nextButton(); this.button(next.centerX, next.centerY, next.width, next.height, this.level.id === LEVELS.length ? 'Открыть галерею' : 'Следующий уровень');
     } else {
       const panelH = h < 700 ? 62 : 76, spare = h - b.y - b.height;
       const panelY = b.y + b.height + Math.max(10, (spare - panelH) / 2);
@@ -338,13 +454,27 @@ class PuzzleScene extends Phaser.Scene {
       this.boardG.fillGradientStyle(0x442c1c, 0x3b271b, 0x0a1a27, 0x102437, .86).fillRoundedRect(panelX, panelY, panelW, panelH, 12);
       this.boardG.lineStyle(1.5, 0xd5a866, .77).strokeRoundedRect(panelX, panelY, panelW, panelH, 12);
       this.boardG.lineStyle(1, 0xffdda1, .25).strokeRoundedRect(panelX + 4, panelY + 4, panelW - 8, panelH - 8, 9);
-      this.txt(panelX + panelW / 2, panelY + (h < 700 ? 19 : 24), `✦  ${count} / 8 собрано  ✦`, h < 700 ? 14 : 16, '#ffdfa5', true);
+      this.txt(panelX + panelW / 2, panelY + (h < 700 ? 19 : 24), `${count} / ${this.level.pieces} собрано`, h < 700 ? 14 : 16, '#ffdfa5', true);
       this.txt(panelX + panelW / 2, panelY + (h < 700 ? 44 : 53), 'Перетаскивай фрагменты на картину', Math.min(14, w * .035), '#f2e3c7');
     }
   }
-  private drawSoon(w: number, h: number) {
-    this.txt(w / 2, h * .4, 'Новые картины скоро', 27, '#ffe0aa', true);
-    this.button(w / 2, h * .62, Math.min(270, w * .7), 54, 'В главное меню');
+  private backArrow(x: number, y: number) {
+    this.chrome.lineStyle(3, 0xffe4ac, 1).lineBetween(x + 9, y, x - 7, y);
+    this.chrome.lineBetween(x - 7, y, x, y - 8);
+    this.chrome.lineBetween(x - 7, y, x, y + 8);
+  }
+  private drawLock(x: number, y: number) {
+    this.chrome.lineStyle(2, 0xc9b18a, .9).strokeRoundedRect(x - 7, y - 13, 14, 18, 7);
+    this.chrome.fillStyle(0xc9a46b, .9).fillRoundedRect(x - 10, y - 3, 20, 16, 3);
+    this.chrome.fillStyle(0x473322, 1).fillCircle(x, y + 3, 2);
+  }
+  private drawStars(x: number, y: number, filled: number, radius: number) {
+    for (let star = 0; star < 3; star++) {
+      const cx = x + (star - 1) * radius * 2.6;
+      const points = Array.from({ length: 10 }, (_, i) => new Phaser.Geom.Point(cx + Math.cos(-Math.PI / 2 + i * Math.PI / 5) * (i % 2 ? radius * .45 : radius), y + Math.sin(-Math.PI / 2 + i * Math.PI / 5) * (i % 2 ? radius * .45 : radius)));
+      if (star < filled) this.chrome.fillStyle(0xffd578, 1).fillPoints(points, true);
+      this.chrome.lineStyle(1.5, 0xffd578, .95).strokePoints(points, true);
+    }
   }
   private iconCircle(x: number, y: number) {
     this.chrome.fillStyle(0x050b11, .7).fillCircle(x, y + 3, 22);
@@ -369,6 +499,14 @@ class PuzzleScene extends Phaser.Scene {
     this.chrome.fillStyle(0xffd47b, 1).fillRoundedRect(x - 5, y + 10, 10, 3, 1);
     this.chrome.fillStyle(0x9b632e, 1).fillRoundedRect(x - 3, y + 13, 6, 2, 1);
   }
+  private galleryIcon(x: number, y: number) {
+    this.chrome.lineStyle(2, 0xffe1a0, .95).strokeRoundedRect(x - 12, y - 9, 24, 18, 3);
+    this.chrome.fillStyle(0xffdb85, .9).fillCircle(x + 5, y - 3, 2.5);
+    this.chrome.lineStyle(2, 0xffe1a0, .95).lineBetween(x - 9, y + 5, x - 2, y - 1);
+    this.chrome.lineBetween(x - 2, y - 1, x + 2, y + 3);
+    this.chrome.lineBetween(x + 2, y + 3, x + 6, y);
+    this.chrome.lineBetween(x + 6, y, x + 10, y + 5);
+  }
   private lantern(x: number, y: number) {
     for (const [r, a] of [[30, .06], [21, .10], [14, .16]] as const) this.chrome.fillStyle(0xffbd55, a).fillCircle(x, y + 3, r);
     this.chrome.fillStyle(0x4a2b16, .95).fillRoundedRect(x - 9, y - 10, 18, 24, 3);
@@ -385,8 +523,8 @@ class PuzzleScene extends Phaser.Scene {
     this.chrome.lineStyle(1.2, 0xffe5a1, .85).strokeRoundedRect(x - w / 2 + 7, y - h / 2 + 7, w - 14, h - 14, h / 2);
     this.txt(x, y - 1, label, Math.min(22, h * .37), '#fff5da', true);
   }
-  private txt(x: number, y: number, value: string, size: number, color: string, bold = false) {
-    this.add.text(x, y, value, { fontFamily: 'Georgia, serif', fontSize: `${size}px`, color, fontStyle: bold ? 'bold' : 'normal', align: 'center', shadow: { color: '#05070c', blur: 6, fill: true, offsetY: 2 } }).setOrigin(.5).setDepth(200).setData('uiText', true);
+  private txt(x: number, y: number, value: string, size: number, color: string, bold = false, align: 'center' | 'left' = 'center') {
+    this.add.text(x, y, value, { fontFamily: 'Georgia, serif', fontSize: `${size}px`, color, fontStyle: bold ? 'bold' : 'normal', align, shadow: { color: '#05070c', blur: 6, fill: true, offsetY: 2 } }).setOrigin(align === 'left' ? 0 : .5, .5).setDepth(200).setData('uiText', true);
   }
   private ensureWholeTexture() {
     if (this.textures.exists('whole-picture')) return;
