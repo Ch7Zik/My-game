@@ -14,4 +14,4 @@ The author describes this pack as “Absolutely Free For Commercial use” on th
 
 The supplied WAV files were converted to Ogg Vorbis and AAC/M4A for browser playback. Mixkit's free sound effects license is at https://mixkit.co/license/modal/sfxFree/ . It permits incorporating effects into a video game, including a commercial game, and restricts redistribution as standalone sound files, stock audio, or a tool/template/source file collection. The effects here are included only as game assets. Refer to the source license for full terms.
 
-`piece-pick` and `button` remain the project's original synthesized effects from the prior version. Their Ogg and AAC copies were not modified in this update.
+The game uses only these two effects. Interface buttons, screen taps, and picking up or dragging puzzle pieces are silent.
