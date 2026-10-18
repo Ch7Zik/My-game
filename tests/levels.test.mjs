@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LEVELS } from '../src/levels.ts';
+import { assetUrl } from '../src/assetUrl.ts';
 import { createRegions, inspectRegions, qualityProblems } from '../src/geometry.ts';
 import { gameLayout, looseScale, startPosition } from '../src/layout.ts';
 import { completeLevel, freshProgress, isInGallery, isUnlocked, nextUnplayed, PROGRESS_KEY, restoreProgress, saveProgress, selectLevel } from '../src/progress.ts';
 
 test('five unique images use the planned 4/4/6/6/8 progression', () => {
+  assert.equal(assetUrl('assets/moonlit-cottage.png'), '/assets/moonlit-cottage.png');
   assert.deepEqual(LEVELS.map(level => level.pieces), [4, 4, 6, 6, 8]);
   assert.equal(new Set(LEVELS.map(level => level.art)).size, 5);
   for (const level of LEVELS) {

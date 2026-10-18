@@ -4,6 +4,7 @@ import { createRegions, inspectRegions, qualityProblems, type PieceRegion, type 
 import { canAdvance, canDrag, isComplete, shouldSnap, wasDragged } from './puzzleRules';
 import { gameLayout, looseScale, startPosition, SLOT_ORDER, type Rect } from './layout';
 import { LEVELS, levelById, type LevelConfig } from './levels';
+import { assetUrl } from './assetUrl';
 import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, saveProgress, selectLevel, type Progress } from './progress';
 import './style.css';
 
@@ -42,8 +43,8 @@ class PuzzleScene extends Phaser.Scene {
 
   constructor() { super('puzzle'); }
   preload() {
-    this.load.image('menu-forest', '/assets/menu-forest.webp');
-    this.load.image('menu-forest-wide', '/assets/menu-forest-wide.webp');
+    this.load.image('menu-forest', assetUrl('assets/menu-forest.webp'));
+    this.load.image('menu-forest-wide', assetUrl('assets/menu-forest-wide.webp'));
     for (const level of LEVELS) this.load.image(`art-${level.id}`, level.art);
   }
   create() {
