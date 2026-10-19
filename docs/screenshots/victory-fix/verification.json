@@ -1,0 +1,55 @@
+{
+  "finalSnapTweenKilled": true,
+  "wholePictureTweenKilledBeforeFadeComplete": true,
+  "first": {
+    "mode": "complete",
+    "details": true,
+    "alpha": 1,
+    "piecesHidden": true,
+    "result": {
+      "bestMs": 33987,
+      "stars": 3
+    },
+    "progress": [
+      1
+    ],
+    "next": {
+      "type": 5,
+      "x": 46.80000000000001,
+      "y": 741.82,
+      "width": 296.4,
+      "height": 52
+    }
+  },
+  "continuedToLevel2": true,
+  "longTitle": {
+    "x": 69.5,
+    "y": 30.5,
+    "right": 320.5,
+    "bottom": 47.5,
+    "width": 251,
+    "height": 17,
+    "headerCenter": 195,
+    "headerWidth": 382
+  },
+  "second": {
+    "result": {
+      "bestMs": 19847,
+      "stars": 3
+    },
+    "progress": [
+      1
+    ],
+    "details": true
+  },
+  "restored": {
+    "result": {
+      "bestMs": 19847,
+      "stars": 3
+    },
+    "progress": [
+      1
+    ]
+  },
+  "errors": []
+}

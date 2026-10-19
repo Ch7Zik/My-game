@@ -1,0 +1,317 @@
+{
+  "360x640": {
+    "immediate": {
+      "mode": "complete",
+      "details": false,
+      "imageAlpha": 1,
+      "elapsed": 15877.70000000298,
+      "board": {
+        "x": 4,
+        "y": 63.12,
+        "width": 352,
+        "height": 528
+      }
+    },
+    "after": {
+      "mode": "complete",
+      "details": true,
+      "result": {
+        "bestMs": 15878,
+        "stars": 3
+      },
+      "progress": [
+        1
+      ],
+      "board": {
+        "x": 4,
+        "y": 63.12,
+        "width": 352,
+        "height": 528
+      },
+      "next": {
+        "type": 5,
+        "x": 43.19999999999999,
+        "y": 594,
+        "width": 273.6,
+        "height": 44
+      },
+      "texts": [
+        {
+          "text": "УРОВЕНЬ 01",
+          "x": 104,
+          "y": 23,
+          "width": 62,
+          "height": 11
+        },
+        {
+          "text": "00:15",
+          "x": 260,
+          "y": 23,
+          "width": 28,
+          "height": 14
+        },
+        {
+          "text": "Картина собрана!",
+          "x": 180,
+          "y": 42,
+          "width": 121,
+          "height": 17
+        },
+        {
+          "text": "Далее",
+          "x": 180,
+          "y": 615,
+          "width": 44,
+          "height": 19
+        }
+      ],
+      "scrollWidth": 360
+    },
+    "errors": []
+  },
+  "390x844": {
+    "immediate": {
+      "mode": "complete",
+      "details": true,
+      "imageAlpha": 1,
+      "elapsed": 17997.699999999255,
+      "board": {
+        "x": 2,
+        "y": 82.82000000000001,
+        "width": 386,
+        "height": 579
+      }
+    },
+    "after": {
+      "mode": "complete",
+      "details": true,
+      "result": {
+        "bestMs": 17998,
+        "stars": 3
+      },
+      "progress": [
+        1
+      ],
+      "board": {
+        "x": 2,
+        "y": 82.82000000000001,
+        "width": 386,
+        "height": 579
+      },
+      "next": {
+        "type": 5,
+        "x": 46.80000000000001,
+        "y": 779,
+        "width": 296.4,
+        "height": 52
+      },
+      "texts": [
+        {
+          "text": "УРОВЕНЬ 01",
+          "x": 119,
+          "y": 23,
+          "width": 62,
+          "height": 11
+        },
+        {
+          "text": "00:17",
+          "x": 275,
+          "y": 23,
+          "width": 28,
+          "height": 14
+        },
+        {
+          "text": "Картина собрана!",
+          "x": 195,
+          "y": 42,
+          "width": 121,
+          "height": 17
+        },
+        {
+          "text": "Время 00:17   ·   Лучшее 00:17",
+          "x": 195,
+          "y": 686.82,
+          "width": 175,
+          "height": 14
+        },
+        {
+          "text": "Далее",
+          "x": 195,
+          "y": 804,
+          "width": 51,
+          "height": 21
+        }
+      ],
+      "scrollWidth": 390
+    },
+    "errors": []
+  },
+  "430x932": {
+    "immediate": {
+      "mode": "complete",
+      "details": true,
+      "imageAlpha": 1,
+      "elapsed": 20350.5,
+      "board": {
+        "x": 2,
+        "y": 86.74000000000001,
+        "width": 426,
+        "height": 639
+      }
+    },
+    "after": {
+      "mode": "complete",
+      "details": true,
+      "result": {
+        "bestMs": 20351,
+        "stars": 3
+      },
+      "progress": [
+        1
+      ],
+      "board": {
+        "x": 2,
+        "y": 86.74000000000001,
+        "width": 426,
+        "height": 639
+      },
+      "next": {
+        "type": 5,
+        "x": 60,
+        "y": 867,
+        "width": 310,
+        "height": 52
+      },
+      "texts": [
+        {
+          "text": "УРОВЕНЬ 01",
+          "x": 139,
+          "y": 23,
+          "width": 62,
+          "height": 11
+        },
+        {
+          "text": "00:20",
+          "x": 295,
+          "y": 23,
+          "width": 28,
+          "height": 14
+        },
+        {
+          "text": "Картина собрана!",
+          "x": 215,
+          "y": 42,
+          "width": 121,
+          "height": 17
+        },
+        {
+          "text": "Время 00:20   ·   Лучшее 00:20",
+          "x": 215,
+          "y": 750.74,
+          "width": 175,
+          "height": 14
+        },
+        {
+          "text": "Далее",
+          "x": 215,
+          "y": 892,
+          "width": 51,
+          "height": 21
+        }
+      ],
+      "scrollWidth": 430
+    },
+    "errors": []
+  },
+  "1920x1080": {
+    "immediate": {
+      "mode": "complete",
+      "details": true,
+      "imageAlpha": 1,
+      "elapsed": 62978.800000000745,
+      "board": {
+        "x": 426.79999999999995,
+        "y": 96.5,
+        "width": 590,
+        "height": 885
+      }
+    },
+    "after": {
+      "mode": "complete",
+      "details": true,
+      "result": {
+        "bestMs": 62979,
+        "stars": 3
+      },
+      "progress": [
+        1
+      ],
+      "board": {
+        "x": 426.79999999999995,
+        "y": 96.5,
+        "width": 590,
+        "height": 885
+      },
+      "next": {
+        "type": 5,
+        "x": 1157.2,
+        "y": 775.5,
+        "width": 282,
+        "height": 52
+      },
+      "texts": [
+        {
+          "text": "УРОВЕНЬ 01",
+          "x": 609.8,
+          "y": 21,
+          "width": 68,
+          "height": 11
+        },
+        {
+          "text": "01:02",
+          "x": 832.8,
+          "y": 21,
+          "width": 33,
+          "height": 17
+        },
+        {
+          "text": "Картина собрана!",
+          "x": 721.8,
+          "y": 49,
+          "width": 162,
+          "height": 23
+        },
+        {
+          "text": "КАРТИНА СОБРАНА",
+          "x": 1298.2,
+          "y": 416.15,
+          "width": 163,
+          "height": 19
+        },
+        {
+          "text": "Время  01:02",
+          "x": 1298.2,
+          "y": 562.4000000000001,
+          "width": 126,
+          "height": 23
+        },
+        {
+          "text": "Лучшее  01:02",
+          "x": 1298.2,
+          "y": 609.2,
+          "width": 98,
+          "height": 18
+        },
+        {
+          "text": "Далее",
+          "x": 1298.2,
+          "y": 800.5,
+          "width": 57,
+          "height": 23
+        }
+      ],
+      "scrollWidth": 1920
+    },
+    "errors": []
+  }
+}

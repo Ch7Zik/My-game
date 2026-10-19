@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { freshProgress, completeLevel, restoreProgress, saveProgress } from '../src/progress.ts';
-import { formatTime, recordResult, restoreResults, saveResults, starsForTime, STAR_THRESHOLDS_SECONDS, RESULTS_KEY } from '../src/results.ts';
+import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay, starsForTime, STAR_THRESHOLDS_SECONDS, RESULTS_KEY } from '../src/results.ts';
 import { gameLayout } from '../src/layout.ts';
 
 test('configurable star times respect existing piece counts and have no failure state', () => {
@@ -26,6 +26,17 @@ test('replays keep fastest time and highest star count independently', () => {
   results = recordResult(results, 1, 50000);
   assert.deepEqual(results[1], { bestMs: 50000, stars: 3 });
   assert.equal(recordResult(results, 99, 1000), results);
+});
+
+test('legacy completions show one star until a timed replay, without inventing a best time', () => {
+  const completed = [1, 2, 3, 4, 5];
+  assert.equal(starsForDisplay(completed, {}, 1), 1);
+  assert.equal(starsForDisplay(completed, {}, 5), 1);
+  assert.equal(starsForDisplay([], {}, 1), 0);
+  const replay = recordResult({}, 1, 70000);
+  assert.equal(starsForDisplay(completed, replay, 1), 3);
+  assert.equal(replay[1].bestMs, 70000);
+  assert.equal(starsForDisplay(completed, {}, 6), 0);
 });
 
 test('results survive reload without changing legacy level progress', () => {

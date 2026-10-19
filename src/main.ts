@@ -7,7 +7,7 @@ import { LEVELS, levelById, type LevelConfig } from './levels';
 import { assetUrl } from './assetUrl';
 import { PuzzleAudio } from './audio';
 import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, saveProgress, selectLevel, type Progress } from './progress';
-import { formatTime, recordResult, restoreResults, saveResults, starsForTime, type Results } from './results';
+import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay, starsForTime, type Results } from './results';
 import './style.css';
 
 type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion; placed: boolean; home: Point; slot: number; hit: Uint8Array; texW: number; texH: number; baseW: number; baseH: number };
@@ -28,6 +28,8 @@ class PuzzleScene extends Phaser.Scene {
   private hiddenDuration = 0;
   private completedMs = 0;
   private victoryDetailsVisible = false;
+  private victoryRevealAt = 0;
+  private victoryRevealTimer: number | null = null;
   private timerText: Phaser.GameObjects.Text | null = null;
   private displayedTime = '';
   private pieces: Piece[] = [];
@@ -78,7 +80,10 @@ class PuzzleScene extends Phaser.Scene {
     this.input.on('pointerupoutside', (p: Phaser.Input.Pointer) => this.pointerUp(p));
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.hiddenAt = performance.now();
-      else if (this.hiddenAt !== null) { this.hiddenDuration += performance.now() - this.hiddenAt; this.hiddenAt = null; }
+      else {
+        if (this.hiddenAt !== null) { this.hiddenDuration += performance.now() - this.hiddenAt; this.hiddenAt = null; }
+        if (this.mode === 'complete' && Date.now() >= this.victoryRevealAt) this.revealVictory();
+      }
     });
     this.layout(); this.draw();
   }
@@ -230,12 +235,26 @@ class PuzzleScene extends Phaser.Scene {
     const radius = Math.max(28, this.board.width * .14);
     if (moved && shouldSnap({ x: p.sprite.x, y: p.sprite.y }, p.home, radius)) {
       p.placed = true; if (this.level.id === 1) this.tutorialDone = true;
-      this.tweens.add({ targets: p.sprite, x: p.home.x, y: p.home.y, displayWidth: p.baseW, displayHeight: p.baseH, duration: 250, ease: 'Sine.Out', onComplete: () => {
-        p.sprite.setTexture(`piece-clean-${p.id}`).setDisplaySize(p.baseW, p.baseH);
+      const lastPiece = isComplete(this.pieces.map(piece => piece.placed));
+      let settled = false;
+      const settle = () => {
+        if (settled || !p.sprite.active || !this.pieces.includes(p)) return;
+        settled = true;
+        p.sprite.setPosition(p.home.x, p.home.y).setTexture(`piece-clean-${p.id}`).setDisplaySize(p.baseW, p.baseH);
         this.audio.play('place');
-        if (isComplete(this.pieces.map(piece => piece.placed))) this.finish();
+        if (lastPiece) this.finish();
         this.draw();
+      };
+      this.tweens.add({ targets: p.sprite, x: p.home.x, y: p.home.y, displayWidth: p.baseW, displayHeight: p.baseH, duration: 250, ease: 'Sine.Out', onComplete: () => {
+        settle();
       } });
+      // Only the final visual snap needs a fallback: losing its tween completion would hide victory.
+      if (lastPiece) window.setTimeout(() => {
+        if (!settled && this.mode === 'game' && this.pieces.includes(p)) {
+          this.tweens.killTweensOf(p.sprite);
+          settle();
+        }
+      }, 350);
     } else this.draw();
   }
   private pieceContains(piece: Piece, x: number, y: number) {
@@ -255,17 +274,28 @@ class PuzzleScene extends Phaser.Scene {
     if (this.startedAt) this.elapsedMs = this.currentElapsed();
     this.completedMs = this.elapsedMs;
     this.victoryDetailsVisible = false;
+    this.victoryRevealAt = Date.now() + 1800;
     window.setTimeout(() => { if (this.mode === 'complete') this.audio.play('complete'); }, 300);
     this.completeImage = this.add.image(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2, 'whole-picture').setDepth(60).setDisplaySize(this.board.width, this.board.height).setAlpha(0);
-    const completedLevel = this.level.id;
     this.tweens.add({ targets: this.completeImage, alpha: 1, duration: 650, ease: 'Sine.Out', onComplete: () => {
-      this.pieces.forEach(p => p.sprite.setVisible(false)); this.guideImage?.setVisible(false);
-      window.setTimeout(() => { if (this.mode === 'complete' && this.level.id === completedLevel) { this.victoryDetailsVisible = true; this.draw(); } }, 700);
+      if (this.mode === 'complete') { this.pieces.forEach(p => p.sprite.setVisible(false)); this.guideImage?.setVisible(false); }
     } });
+    // Results have their own deadline. A suspended/cancelled tween must not strand the win screen.
+    this.victoryRevealTimer = window.setTimeout(() => this.revealVictory(), 1800);
     this.progress = completeLevel(this.progress, this.level.id);
     saveProgress(safeStorage, this.progress);
     this.results = recordResult(this.results, this.level.id, this.completedMs);
     saveResults(safeStorage, this.results);
+    this.draw();
+  }
+  private revealVictory() {
+    if (this.mode !== 'complete' || this.victoryDetailsVisible || Date.now() < this.victoryRevealAt) return;
+    if (this.victoryRevealTimer !== null) window.clearTimeout(this.victoryRevealTimer);
+    this.victoryRevealTimer = null;
+    if (this.completeImage) { this.tweens.killTweensOf(this.completeImage); this.completeImage.setAlpha(1); }
+    this.pieces.forEach(piece => piece.sprite.setVisible(false));
+    this.guideImage?.setVisible(false);
+    this.victoryDetailsVisible = true;
     this.draw();
   }
   private startGame(id: number) {
@@ -283,6 +313,8 @@ class PuzzleScene extends Phaser.Scene {
     this.draw();
   }
   private removePieces() {
+    if (this.victoryRevealTimer !== null) window.clearTimeout(this.victoryRevealTimer);
+    this.victoryRevealTimer = null; this.victoryRevealAt = 0;
     this.dragging = null; this.hintPiece = null; this.pieces.forEach(p => p.sprite.destroy()); this.pieces = [];
     this.guideImage?.destroy(); this.guideImage = null; this.previewImage?.destroy(); this.previewImage = null;
     this.completeImage?.destroy(); this.completeImage = null;
@@ -300,8 +332,16 @@ class PuzzleScene extends Phaser.Scene {
     const w = this.viewWidth(), h = this.viewHeight();
     const width = Math.min(this.preview ? 282 : 310, w * .76);
     const x = this.preview ? this.preview.x + (this.preview.width - width) / 2 : (w - width) / 2;
-    const y = this.preview ? this.preview.y + this.preview.height - 56 : h - (h < 700 ? 46 : 65);
-    return new Phaser.Geom.Rectangle(x, y, width, h < 700 ? 44 : 52);
+    const buttonHeight = h < 700 ? 44 : 52;
+    const safeBottom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom')) || 0;
+    const y = this.preview ? this.victoryCard().y + 174
+      : Math.min(this.board.y + this.board.height + (h < 700 ? 0 : 80), h - Math.max(20, safeBottom + 16) - buttonHeight);
+    return new Phaser.Geom.Rectangle(x, y, width, buttonHeight);
+  }
+  private victoryCard() {
+    const p = this.preview!;
+    const width = Math.min(350, p.width), height = 240;
+    return new Phaser.Geom.Rectangle(p.x + (p.width - width) / 2, p.y + (p.height - height) / 2, width, height);
   }
   private backButton() {
     const w = this.viewWidth(), h = this.viewHeight();
@@ -317,6 +357,7 @@ class PuzzleScene extends Phaser.Scene {
     return Math.max(0, now - this.startedAt - this.hiddenDuration - (this.hiddenAt === null ? 0 : now - this.hiddenAt));
   }
   update() {
+    if (this.mode === 'complete' && !this.victoryDetailsVisible && Date.now() >= this.victoryRevealAt) this.revealVictory();
     if (this.mode === 'game' && this.pieces.length && this.startedAt && !document.hidden) {
       this.elapsedMs = this.currentElapsed();
       const label = formatTime(this.elapsedMs);
@@ -485,7 +526,7 @@ class PuzzleScene extends Phaser.Scene {
         const tx = imageX + imageW + 14;
         this.txt(tx, r.y + r.height * .25, `0${level.id}  ${level.title}`, Math.min(17, w * .039), open ? '#ffead0' : '#abb6bd', true, 'left');
         this.txt(tx, r.y + r.height * .52, done ? 'Собрана' : 'Не собрана', 11, open ? '#d4b488' : '#8697a0', false, 'left');
-        this.drawStars(tx + 25, r.y + r.height * .77, this.results[level.id]?.stars ?? 0, 6);
+        this.drawStars(tx + 25, r.y + r.height * .77, starsForDisplay(this.progress.completed, this.results, level.id), 6);
       } else {
         this.chrome.fillStyle(0x06121d, .72).fillRoundedRect(imageX + 5, imageY + 5, desktop ? 41 : 32, desktop ? 27 : 22, 6);
         this.txt(imageX + (desktop ? 25 : 21), imageY + (desktop ? 18 : 16), `0${level.id}`, desktop ? 14 : 11, '#ffdf9e', true);
@@ -496,10 +537,10 @@ class PuzzleScene extends Phaser.Scene {
         }
         this.txt(r.centerX, r.bottom - (desktop ? 57 : 22), level.title, desktop ? 18 : 12, open ? '#ffe8bc' : '#aab3ba', true);
         if (desktop) {
-          this.drawStars(r.centerX, r.bottom - 28, this.results[level.id]?.stars ?? 0, 8);
+          this.drawStars(r.centerX, r.bottom - 28, starsForDisplay(this.progress.completed, this.results, level.id), 8);
           this.txt(r.centerX, r.bottom - 9, done ? 'СОБРАНО' : open ? 'ДОСТУПЕН' : 'ЗАКРЫТ', 10, open ? '#cda66d' : '#89959b', true);
         } else {
-          this.drawStars(r.centerX, r.bottom - 8, this.results[level.id]?.stars ?? 0, 5.5);
+          this.drawStars(r.centerX, r.bottom - 8, starsForDisplay(this.progress.completed, this.results, level.id), 5.5);
         }
       }
     }
@@ -523,7 +564,7 @@ class PuzzleScene extends Phaser.Scene {
     const view = this.add.image(w / 2, top + height / 2, `art-${level.id}`).setDepth(5).setDisplaySize(width, height);
     this.uiImages.push(view);
     this.chrome.lineStyle(1.3, 0xd3aa70, .9).strokeRoundedRect(w / 2 - width / 2 - 3, top - 3, width + 6, height + 6, 7);
-    this.drawStars(w / 2, Math.min(h - 17, top + height + 20), this.results[level.id]?.stars ?? 0, 6);
+    this.drawStars(w / 2, Math.min(h - 17, top + height + 20), starsForDisplay(this.progress.completed, this.results, level.id), 6);
   }
   private drawGame(w: number, h: number) {
     this.menuArt?.setVisible(false);
@@ -554,35 +595,42 @@ class PuzzleScene extends Phaser.Scene {
     this.backArrow(back.x, back.y);
     if (this.mode === 'complete') this.galleryIcon(hint.x, hint.y); else this.bulb(hint.x, hint.y);
     const details = this.mode === 'complete' && this.victoryDetailsVisible;
-    this.txt(hx - (mobile ? 76 : 112), mobile ? 23 : 21, `УРОВЕНЬ 0${this.level.id}`, mobile ? 10 : 11, '#f5d194', true);
+    this.txt(hx - (mobile ? 76 : 112), 21, `УРОВЕНЬ 0${this.level.id}`, mobile ? 10 : 11, '#f5d194', true);
     const shownMs = this.mode === 'complete' ? this.completedMs : this.elapsedMs;
-    if (this.mode === 'game' || details) {
+    if (this.mode === 'game' || (details && mobile)) {
       this.displayedTime = formatTime(shownMs);
-      this.timerText = this.txt(hx + (mobile ? 80 : 111), mobile ? 23 : 21, this.displayedTime, mobile ? 12 : 14, '#ffe1a8', true);
+      this.timerText = this.txt(hx + (mobile ? 80 : 111), mobile ? 21 : 21,
+        details ? `Время ${this.displayedTime}` : this.displayedTime, mobile ? 11 : 14, '#ffe1a8', true);
     }
-    if (details) this.drawStars(hx, mobile ? 23 : 21, starsForTime(this.level.pieces, this.completedMs), mobile ? 4 : 5);
-    else if (this.mode === 'game' && this.results[this.level.id]) this.drawStars(hx, mobile ? 23 : 21, this.results[this.level.id].stars, mobile ? 4 : 5);
-    this.txt(hx, mobile ? 42 : 49, details ? 'Картина собрана!' : this.level.title, mobile ? 15 : 20, '#ffebc8', true);
+    if (details && mobile) this.drawStars(hx, 21, starsForTime(this.level.pieces, this.completedMs), 5);
+    else if (this.mode === 'game' && this.results[this.level.id]) this.drawStars(hx, 21, this.results[this.level.id].stars, mobile ? 4 : 5);
+    this.headerTitle(hx, mobile ? 39 : 42, this.mode === 'complete' ? 'Картина собрана!' : this.level.title, hw, mobile);
 
     if (this.mode !== 'complete' || !this.victoryDetailsVisible) return;
     const bestMs = this.results[this.level.id]?.bestMs ?? this.completedMs;
     if (this.preview) {
-      const p = this.preview, cx = p.x + p.width / 2;
-      this.boardG.fillStyle(0x102634, .92).fillRoundedRect(p.x, p.y + p.height * .2, p.width, p.height * .58, 13);
-      this.boardG.lineStyle(1.2, 0xcfa46d, .8).strokeRoundedRect(p.x, p.y + p.height * .2, p.width, p.height * .58, 13);
-      this.txt(cx, p.y + p.height * .29, 'КАРТИНА СОБРАНА', 16, '#f7d49b', true);
-      this.drawStars(cx, p.y + p.height * .39, starsForTime(this.level.pieces, this.completedMs), 14);
-      this.txt(cx, p.y + p.height * .54, `Время  ${formatTime(this.completedMs)}`, 22, '#ffe7b7', true);
-      this.txt(cx, p.y + p.height * .62, `Лучшее  ${formatTime(bestMs)}`, 16, '#d7bc93');
+      const card = this.victoryCard(), cx = card.centerX;
+      this.boardG.fillStyle(0x102634, .88).fillRoundedRect(card.x, card.y, card.width, card.height, 12);
+      this.boardG.lineStyle(1.1, 0xcfa46d, .78).strokeRoundedRect(card.x, card.y, card.width, card.height, 12);
+      this.drawStars(cx, card.y + 46, starsForTime(this.level.pieces, this.completedMs), 12);
+      this.txt(cx, card.y + 97, `Время ${formatTime(this.completedMs)}`, 21, '#ffe7b7', true);
+      this.txt(cx, card.y + 133, `Лучшее ${formatTime(bestMs)}`, 15, '#d7bc93');
       const next = this.nextButton();
       this.button(next.centerX, next.centerY, next.width, next.height, this.level.id === LEVELS.length ? 'В галерею' : 'Далее');
     } else {
-      const spare = h - (b.y + b.height);
-      if (spare > 91) {
-        this.txt(w / 2, b.y + b.height + 25, `Время ${formatTime(this.completedMs)}   ·   Лучшее ${formatTime(bestMs)}`, 13, '#ffe3af', true);
-      }
       const next = this.nextButton();
+      if (next.y - b.y - b.height > 44) this.txt(w / 2, b.y + b.height + 25, `Лучшее ${formatTime(bestMs)}`, 13, '#ffe3af', true);
       this.button(next.centerX, next.centerY, next.width, next.height, this.level.id === LEVELS.length ? 'В галерею' : 'Далее');
+    }
+  }
+  private headerTitle(x: number, y: number, value: string, headerWidth: number, mobile: boolean) {
+    const available = headerWidth - (mobile ? 112 : 140);
+    let size = mobile ? 15 : 20;
+    const title = this.txt(x, y, value, size, '#ffebc8', true);
+    while (title.width > available && size > (mobile ? 11 : 14)) title.setFontSize(--size);
+    if (title.width > available) {
+      title.setFontSize(mobile ? 10 : 13).setWordWrapWidth(available, true).setMaxLines(2);
+      title.setY(mobile ? 37 : 40);
     }
   }
   private backArrow(x: number, y: number) {
@@ -635,14 +683,7 @@ class PuzzleScene extends Phaser.Scene {
     this.chrome.lineBetween(x + 6, y, x + 10, y + 5);
   }
   private button(x: number, y: number, w: number, h: number, label: string) {
-    this.chrome.fillStyle(0x02080c, .68).fillRoundedRect(x - w / 2 + 2, y - h / 2 + 5, w, h, h / 2);
-    this.chrome.fillStyle(0x8c5d2e, 1).fillRoundedRect(x - w / 2, y - h / 2, w, h, h / 2);
-    this.chrome.fillStyle(0xd5a363, 1).fillRoundedRect(x - w / 2 + 4, y - h / 2 + 4, w - 8, h - 8, h / 2);
-    this.chrome.fillStyle(0xffe0a1, .29).fillRoundedRect(x - w / 2 + 12, y - h / 2 + 7, w - 24, Math.max(8, h * .24), 7);
-    this.chrome.lineStyle(1, 0xffe6b3, .88).strokeRoundedRect(x - w / 2 + 6, y - h / 2 + 6, w - 12, h - 12, h / 2);
-    this.chrome.fillStyle(0xffe5a4, .55).fillCircle(x - w / 2 + 20, y, 2.5);
-    this.chrome.fillCircle(x + w / 2 - 20, y, 2.5);
-    this.txt(x, y - 1, label, Math.min(25, h * (this.viewWidth() >= 900 ? .41 : .37)), '#392313', true, 'center', false);
+    this.menuPlaque(new Phaser.Geom.Rectangle(x - w / 2, y - h / 2, w, h), label, 'plaque-gold');
   }
   private txt(x: number, y: number, value: string, size: number, color: string, bold = false, align: 'center' | 'left' = 'center', shadow = true): Phaser.GameObjects.Text {
     return this.add.text(x, y, value, { fontFamily: 'Georgia, serif', fontSize: `${size}px`, color, fontStyle: bold ? 'bold' : 'normal', align, shadow: shadow ? { color: '#05070c', blur: 6, fill: true, offsetY: 2 } : undefined }).setOrigin(align === 'left' ? 0 : .5, .5).setDepth(200).setResolution(RENDER_SCALE).setData('uiText', true);
