@@ -5,6 +5,12 @@ export interface LevelResult { bestMs: number; stars: Stars }
 export type Results = Record<number, LevelResult>;
 export const RESULTS_KEY = 'mystic-puzzles-results-v1';
 
+// Earlier versions stored completed levels without a timed result. A completion
+// still earns the minimum star; the first timed replay records a real score.
+export function starsForDisplay(completed: readonly number[], results: Results, id: number): 0 | Stars {
+  return results[id]?.stars ?? (completed.includes(id) ? 1 : 0);
+}
+
 // Initial, tuneable thresholds by the existing number of pieces. Seconds for 3 and 2 stars.
 export const STAR_THRESHOLDS_SECONDS = {
   4: { three: 90, two: 180 },

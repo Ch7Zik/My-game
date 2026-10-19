@@ -7,7 +7,7 @@ import { LEVELS, levelById, type LevelConfig } from './levels';
 import { assetUrl } from './assetUrl';
 import { PuzzleAudio } from './audio';
 import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, saveProgress, selectLevel, type Progress } from './progress';
-import { formatTime, recordResult, restoreResults, saveResults, starsForTime, type Results } from './results';
+import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay, starsForTime, type Results } from './results';
 import './style.css';
 
 type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion; placed: boolean; home: Point; slot: number; hit: Uint8Array; texW: number; texH: number; baseW: number; baseH: number };
@@ -526,7 +526,7 @@ class PuzzleScene extends Phaser.Scene {
         const tx = imageX + imageW + 14;
         this.txt(tx, r.y + r.height * .25, `0${level.id}  ${level.title}`, Math.min(17, w * .039), open ? '#ffead0' : '#abb6bd', true, 'left');
         this.txt(tx, r.y + r.height * .52, done ? 'Собрана' : 'Не собрана', 11, open ? '#d4b488' : '#8697a0', false, 'left');
-        this.drawStars(tx + 25, r.y + r.height * .77, this.results[level.id]?.stars ?? 0, 6);
+        this.drawStars(tx + 25, r.y + r.height * .77, starsForDisplay(this.progress.completed, this.results, level.id), 6);
       } else {
         this.chrome.fillStyle(0x06121d, .72).fillRoundedRect(imageX + 5, imageY + 5, desktop ? 41 : 32, desktop ? 27 : 22, 6);
         this.txt(imageX + (desktop ? 25 : 21), imageY + (desktop ? 18 : 16), `0${level.id}`, desktop ? 14 : 11, '#ffdf9e', true);
@@ -537,10 +537,10 @@ class PuzzleScene extends Phaser.Scene {
         }
         this.txt(r.centerX, r.bottom - (desktop ? 57 : 22), level.title, desktop ? 18 : 12, open ? '#ffe8bc' : '#aab3ba', true);
         if (desktop) {
-          this.drawStars(r.centerX, r.bottom - 28, this.results[level.id]?.stars ?? 0, 8);
+          this.drawStars(r.centerX, r.bottom - 28, starsForDisplay(this.progress.completed, this.results, level.id), 8);
           this.txt(r.centerX, r.bottom - 9, done ? 'СОБРАНО' : open ? 'ДОСТУПЕН' : 'ЗАКРЫТ', 10, open ? '#cda66d' : '#89959b', true);
         } else {
-          this.drawStars(r.centerX, r.bottom - 8, this.results[level.id]?.stars ?? 0, 5.5);
+          this.drawStars(r.centerX, r.bottom - 8, starsForDisplay(this.progress.completed, this.results, level.id), 5.5);
         }
       }
     }
@@ -564,7 +564,7 @@ class PuzzleScene extends Phaser.Scene {
     const view = this.add.image(w / 2, top + height / 2, `art-${level.id}`).setDepth(5).setDisplaySize(width, height);
     this.uiImages.push(view);
     this.chrome.lineStyle(1.3, 0xd3aa70, .9).strokeRoundedRect(w / 2 - width / 2 - 3, top - 3, width + 6, height + 6, 7);
-    this.drawStars(w / 2, Math.min(h - 17, top + height + 20), this.results[level.id]?.stars ?? 0, 6);
+    this.drawStars(w / 2, Math.min(h - 17, top + height + 20), starsForDisplay(this.progress.completed, this.results, level.id), 6);
   }
   private drawGame(w: number, h: number) {
     this.menuArt?.setVisible(false);
