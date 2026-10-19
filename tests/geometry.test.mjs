@@ -34,8 +34,8 @@ test('mobile and desktop layouts keep the picture proportional and every start p
   for (const [width, height] of [[360,640],[390,844],[430,932],[768,1024],[1920,1080]]) {
     const { board, preview } = gameLayout(width, height);
     assert.ok(Math.abs(board.width / board.height - 2 / 3) < 1e-10);
-    assert.ok(board.x >= 0 && board.y >= 75);
-    assert.ok(board.x + board.width <= width && board.y + board.height <= height - 60);
+    assert.ok(board.x >= 0 && board.y >= 58);
+    assert.ok(board.x + board.width <= width && board.y + board.height <= height - 40);
     if (preview) assert.ok(preview.x + preview.width <= width);
     const scale = looseScale(width, height);
     for (const region of picture.regions) {
