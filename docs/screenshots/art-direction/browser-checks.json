@@ -1,0 +1,64 @@
+{
+  "360x640": {
+    "wrongReleaseUnplaced": true,
+    "touchOrMousePlaced": true,
+    "scroll": {
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "viewport": 360
+    },
+    "errors": []
+  },
+  "390x844": {
+    "audioTogglePersistence": true,
+    "levelsAndGallery": true,
+    "hint": true,
+    "wrongReleaseUnplaced": true,
+    "touchOrMousePlaced": true,
+    "completed": {
+      "mode": "complete",
+      "stars": 3,
+      "progress": [
+        1
+      ]
+    },
+    "savedAfterReload": {
+      "saves": [
+        1
+      ],
+      "stars": 3,
+      "music": true,
+      "effects": true
+    },
+    "scroll": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "viewport": 390
+    },
+    "errors": []
+  },
+  "430x932": {
+    "wrongReleaseUnplaced": true,
+    "touchOrMousePlaced": true,
+    "scroll": {
+      "x": 0,
+      "y": 0,
+      "width": 430,
+      "viewport": 430
+    },
+    "errors": []
+  },
+  "1920x1080": {
+    "wrongReleaseUnplaced": true,
+    "touchOrMousePlaced": true,
+    "scroll": {
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "viewport": 1920
+    },
+    "errors": []
+  }
+}
