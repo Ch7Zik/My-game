@@ -8,6 +8,7 @@ import { assetUrl } from './assetUrl';
 import { PuzzleAudio } from './audio';
 import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, saveProgress, selectLevel, type Progress } from './progress';
 import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay, starsForTime, type Results } from './results';
+import { mobileVictoryLayout } from './victoryLayout';
 import './style.css';
 
 type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion; placed: boolean; home: Point; slot: number; hit: Uint8Array; texW: number; texH: number; baseW: number; baseH: number };
@@ -330,31 +331,44 @@ class PuzzleScene extends Phaser.Scene {
   private levelsButton() { const w = this.viewWidth(), h = this.viewHeight(), width = Math.min(w >= 900 ? 170 : 155, w * .41); return new Phaser.Geom.Rectangle(w / 2 - width - 7, h < 700 ? h - 50 : h - 72, width, 44); }
   private nextButton() {
     const w = this.viewWidth(), h = this.viewHeight();
+    if (this.mode === 'complete' && !this.preview) {
+      const button = this.victoryMobileLayout().button;
+      return new Phaser.Geom.Rectangle(button.x, button.y, button.width, button.height);
+    }
     const width = Math.min(this.preview ? 282 : 310, w * .76);
     const x = this.preview ? this.preview.x + (this.preview.width - width) / 2 : (w - width) / 2;
     const buttonHeight = h < 700 ? 44 : 52;
     const safeBottom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom')) || 0;
-    const y = this.preview ? this.victoryCard().y + 174
+    const y = this.preview ? this.victoryCard().y + 196
       : Math.min(this.board.y + this.board.height + (h < 700 ? 0 : 80), h - Math.max(20, safeBottom + 16) - buttonHeight);
     return new Phaser.Geom.Rectangle(x, y, width, buttonHeight);
   }
   private victoryCard() {
     const p = this.preview!;
-    const width = Math.min(350, p.width), height = 240;
+    const width = Math.min(350, p.width), height = 260;
     return new Phaser.Geom.Rectangle(p.x + (p.width - width) / 2, p.y + (p.height - height) / 2, width, height);
+  }
+  private safeInset(side: 'top' | 'bottom') {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(`--safe-${side}`);
+    return Math.max(0, parseFloat(value) || 0);
+  }
+  private victoryMobileLayout() {
+    return mobileVictoryLayout(this.viewWidth(), this.viewHeight(), this.board,
+      this.safeInset('top'), this.safeInset('bottom'));
   }
   private victoryPictureRect() {
     const board = this.board;
     if (this.preview) return board;
-    const height = Math.min(board.height, this.nextButton().y - board.y - 14);
-    return new Phaser.Geom.Rectangle((this.viewWidth() - height * 2 / 3) / 2, board.y, height * 2 / 3, height);
+    const picture = this.victoryMobileLayout().picture;
+    return new Phaser.Geom.Rectangle(picture.x, picture.y, picture.width, picture.height);
   }
   private backButton() {
     const w = this.viewWidth(), h = this.viewHeight();
     if (this.mode === 'levels' || this.mode === 'gallery' || this.mode === 'view') return new Phaser.Geom.Circle(w >= 900 ? Math.max(54, (w - 1560) / 2 + 30) : 35, h < 700 ? 39 : w >= 900 ? 62 : 46, 25);
-    return new Phaser.Geom.Circle(this.headerCenter() - this.headerWidth() / 2 + 27, w < 900 ? 30 : 40, 24);
+    const top = this.mode === 'complete' && !this.preview ? this.safeInset('top') : 0;
+    return new Phaser.Geom.Circle(this.headerCenter() - this.headerWidth() / 2 + 27, (w < 900 ? 30 : 40) + top, 24);
   }
-  private hintButton() { const w = this.viewWidth(); return new Phaser.Geom.Circle(this.headerCenter() + this.headerWidth() / 2 - 27, w < 900 ? 30 : 40, 24); }
+  private hintButton() { const w = this.viewWidth(), top = this.mode === 'complete' && !this.preview ? this.safeInset('top') : 0; return new Phaser.Geom.Circle(this.headerCenter() + this.headerWidth() / 2 - 27, (w < 900 ? 30 : 40) + top, 24); }
   private headerCenter() { return this.preview ? this.board.x + this.board.width / 2 : this.viewWidth() / 2; }
   private headerWidth() { return this.preview ? this.board.width : Math.min(this.viewWidth() - 8, 440); }
 
@@ -590,8 +604,12 @@ class PuzzleScene extends Phaser.Scene {
       this.previewImage.setVisible(true).setPosition(p.x + p.width / 2, p.y + p.height / 2).setDisplaySize(p.width, p.height);
     } else this.previewImage?.setVisible(false);
 
-    const hx = this.headerCenter(), hw = this.headerWidth(), headerH = mobile ? 54 : 70;
-    const header = this.add.image(hx, 3 + headerH / 2, 'header-ornate').setDepth(115)
+    const details = this.mode === 'complete';
+    const compactVictory = details && !this.preview;
+    const victoryLayout = compactVictory ? this.victoryMobileLayout() : null;
+    const hx = this.headerCenter(), hw = this.headerWidth(), headerH = mobile || compactVictory ? 54 : 70;
+    const headerTop = victoryLayout?.headerTop ?? 0;
+    const header = this.add.image(hx, headerTop + 3 + headerH / 2, 'header-ornate').setDepth(115)
       .setDisplaySize(hw + 4, headerH + 9);
     this.uiImages.push(header);
     const back = this.backButton(), hint = this.hintButton();
@@ -599,51 +617,69 @@ class PuzzleScene extends Phaser.Scene {
     this.iconCircle(hint.x, hint.y, mobile ? 18 : 21);
     this.backArrow(back.x, back.y);
     if (this.mode === 'complete') this.galleryIcon(hint.x, hint.y); else this.bulb(hint.x, hint.y);
-    const details = this.mode === 'complete';
-    this.txt(hx - (mobile ? 76 : 112), mobile ? 17 : 21, `УРОВЕНЬ 0${this.level.id}`, mobile ? 10 : 11, '#f5d194', true);
-    const shownMs = this.mode === 'complete' ? this.completedMs : this.elapsedMs;
-    if (this.mode === 'game' || (details && mobile)) {
-      this.displayedTime = formatTime(shownMs);
-      this.timerText = this.txt(hx + (mobile ? 80 : 111), mobile ? 17 : 21,
-        details ? `Время ${this.displayedTime}` : this.displayedTime, mobile ? 11 : 14, '#ffe1a8', true);
+    if (compactVictory) {
+      this.headerTitle(hx, headerTop + 35, `УРОВЕНЬ 0${this.level.id}`, hw, true);
+    } else {
+      this.txt(hx - (mobile ? 76 : 112), mobile ? 17 : 21, `УРОВЕНЬ 0${this.level.id}`, mobile ? 10 : 11, '#f5d194', true);
+      if (this.mode === 'game') {
+        this.displayedTime = formatTime(this.elapsedMs);
+        this.timerText = this.txt(hx + (mobile ? 80 : 111), mobile ? 17 : 21,
+          this.displayedTime, mobile ? 11 : 14, '#ffe1a8', true);
+      }
+      if (this.mode === 'game' && this.results[this.level.id]) this.drawStars(hx, mobile ? 17 : 21, this.results[this.level.id].stars, mobile ? 4 : 5);
+      this.headerTitle(hx, mobile ? 39 : 42, this.level.title, hw, mobile);
     }
-    if (details && mobile) this.drawStars(hx, 17, starsForTime(this.level.pieces, this.completedMs), 5);
-    else if (this.mode === 'game' && this.results[this.level.id]) this.drawStars(hx, mobile ? 17 : 21, this.results[this.level.id].stars, mobile ? 4 : 5);
-    this.headerTitle(hx, mobile ? 39 : 42, this.mode === 'complete' ? 'Картина собрана!' : this.level.title, hw, mobile);
 
     if (!details) return;
     const bestMs = this.results[this.level.id]?.bestMs ?? this.completedMs;
-    if (this.preview) {
-      const card = this.victoryCard(), cx = card.centerX;
-      this.boardG.fillStyle(0x102634, .88).fillRoundedRect(card.x, card.y, card.width, card.height, 12);
-      this.boardG.lineStyle(1.1, 0xcfa46d, .78).strokeRoundedRect(card.x, card.y, card.width, card.height, 12);
-      this.drawStars(cx, card.y + 46, starsForTime(this.level.pieces, this.completedMs), 12);
-      this.txt(cx, card.y + 97, `Время ${formatTime(this.completedMs)}`, 21, '#ffe7b7', true);
-      this.txt(cx, card.y + 133, `Лучшее ${formatTime(bestMs)}`, 15, '#d7bc93');
-      const next = this.nextButton();
-      this.button(next.centerX, next.centerY, next.width, next.height, this.level.id === LEVELS.length ? 'В галерею' : 'Далее');
-    } else {
-      const next = this.nextButton();
-      if (next.y - b.y - b.height > 44) this.txt(w / 2, b.y + b.height + 25, `Лучшее ${formatTime(bestMs)}`, 13, '#ffe3af', true);
-      this.button(next.centerX, next.centerY, next.width, next.height, this.level.id === LEVELS.length ? 'В галерею' : 'Далее');
-    }
+    if (victoryLayout) this.drawVictoryMobile(victoryLayout);
+    else this.drawVictoryDesktop(bestMs);
     if (!this.victoryUiLogged) {
       this.victoryUiLogged = true;
       const next = this.nextButton();
       this.logVictory('ui-drawn', { stars: starsForTime(this.level.pieces, this.completedMs),
         buttonX: next.x, buttonY: next.y, buttonWidth: next.width, buttonHeight: next.height,
-        pictureBottom: b.y + b.height });
+        pictureBottom: b.y + b.height, resultsTop: victoryLayout?.results.y ?? this.victoryCard().y });
     }
+  }
+  private drawVictoryMobile(layout: ReturnType<typeof mobileVictoryLayout>) {
+    const { results, titleY, detailsY, compact } = layout;
+    const cx = this.viewWidth() / 2;
+    // A slim illuminated plaque sits below the picture; it never masks the art.
+    this.boardG.fillStyle(0x071b2b, .82).fillRoundedRect(results.x, results.y, results.width, results.height, 12);
+    this.boardG.lineStyle(1, 0xd9aa6b, .62).strokeRoundedRect(results.x, results.y, results.width, results.height, 12);
+    this.chrome.lineStyle(1, 0xffdc9d, .36).lineBetween(results.x + 20, results.y + 4, results.x + results.width - 20, results.y + 4);
+    this.txt(cx, titleY, 'Картина собрана!', compact ? 18 : 20, '#ffebc3', true);
+    this.txt(cx - 70, detailsY, `Время ${formatTime(this.completedMs)}`, compact ? 12 : 14, '#ffe1aa', true);
+    this.drawStars(cx + 78, detailsY, starsForTime(this.level.pieces, this.completedMs), compact ? 7 : 8);
+    const next = this.nextButton();
+    this.button(next.centerX, next.centerY, next.width, next.height, this.level.id === LEVELS.length ? 'В галерею' : 'Далее');
+  }
+  private drawVictoryDesktop(bestMs: number) {
+    const card = this.victoryCard(), cx = card.centerX;
+    this.boardG.fillStyle(0x102634, .8).fillRoundedRect(card.x, card.y, card.width, card.height, 16);
+    this.boardG.lineStyle(1.1, 0xcfa46d, .7).strokeRoundedRect(card.x, card.y, card.width, card.height, 16);
+    this.txt(cx, card.y + 35, 'Картина собрана!', 22, '#ffe8bb', true);
+    this.ornamentRule(cx, card.y + 61, card.width - 56);
+    this.drawStars(cx, card.y + 88, starsForTime(this.level.pieces, this.completedMs), 12);
+    this.txt(cx, card.y + 133, `Время ${formatTime(this.completedMs)}`, 20, '#ffe7b7', true);
+    this.txt(cx, card.y + 161, `Лучшее ${formatTime(bestMs)}`, 14, '#d7bc93');
+    const next = this.nextButton();
+    this.button(next.centerX, next.centerY, next.width, next.height, this.level.id === LEVELS.length ? 'В галерею' : 'Далее');
   }
   private headerTitle(x: number, y: number, value: string, headerWidth: number, mobile: boolean) {
     const available = headerWidth - (mobile ? 112 : 140);
     let size = mobile ? 14 : 20;
     const title = this.txt(x, y, value, size, '#ffebc8', true);
     while (title.width > available && size > (mobile ? 10 : 14)) title.setFontSize(--size);
-    if (title.width > available) {
-      title.setFontSize(mobile ? 10 : 13).setWordWrapWidth(available, true).setMaxLines(2);
-      title.setY(mobile ? 39 : 40);
-    }
+    if (title.width > available && mobile) {
+      title.setFontSize(10);
+      let shortened = value;
+      while (title.width > available && shortened.length > 2) {
+        shortened = `${shortened.slice(0, -2)}…`;
+        title.setText(shortened);
+      }
+    } else if (title.width > available) title.setFontSize(13).setWordWrapWidth(available, true).setMaxLines(2);
     const padding = mobile ? 8 : 12;
     this.chrome.fillStyle(0x071825, .96).fillRoundedRect(x - title.width / 2 - padding,
       title.y - title.height / 2 - 2, title.width + padding * 2, title.height + 4, 6);
@@ -724,5 +760,9 @@ buildBadge.id = 'build-version';
 buildBadge.textContent = `Победа-2 · ${BUILD_ID}`;
 document.body.append(buildBadge);
 
-window.addEventListener('resize', () => game.scale.setGameSize(Math.round(window.innerWidth * RENDER_SCALE), Math.round(window.innerHeight * RENDER_SCALE)));
+function resizeGame() {
+  game.scale.setGameSize(Math.round(window.innerWidth * RENDER_SCALE), Math.round(window.innerHeight * RENDER_SCALE));
+  game.scale.refresh();
+}
+window.addEventListener('resize', resizeGame);
 if (import.meta.env.DEV) Object.assign(window, { __mysticGame: game });
