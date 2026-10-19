@@ -13,11 +13,11 @@ export function looseScale(viewportWidth: number, viewportHeight: number): numbe
 }
 export function gameLayout(w: number, h: number): { board: Rect; preview: Rect | null } {
   const desktop = w >= 1000 && w / h > 1.3;
-  const top = h < 700 ? 83 : 94;
-  const foot = h < 700 ? 94 : 112;
-  const boardWidth = Math.max(190, Math.min(desktop ? 590 : w - 20, (h - top - foot) * 2 / 3));
+  const top = desktop ? 84 : h < 700 ? 62 : 60;
+  const foot = desktop ? 86 : 42;
+  const boardWidth = Math.max(190, Math.min(desktop ? 590 : w - (h < 700 ? 8 : 4), (h - top - foot) * 2 / 3));
   const boardHeight = boardWidth * 1.5;
-  const y = top + Math.max(0, (h - top - foot - boardHeight) * (desktop ? .5 : .30));
+  const y = top + Math.max(0, (h - top - foot - boardHeight) * (desktop ? .5 : .14));
   if (desktop) {
     const previewWidth = Math.min(390, Math.max(260, w * .225));
     const gap = Math.min(92, Math.max(45, w * .045));
