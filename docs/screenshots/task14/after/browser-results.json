@@ -1,0 +1,146 @@
+[
+  {
+    "size": "360x640",
+    "elapsedMs": 19269,
+    "stars": 3,
+    "picture": {
+      "x": 26.666666666666657,
+      "y": 90,
+      "width": 306.6666666666667,
+      "height": 460
+    },
+    "button": {
+      "type": 5,
+      "x": 28,
+      "y": 586,
+      "width": 304,
+      "height": 44
+    },
+    "pixels": {
+      "title": 898,
+      "time": 229,
+      "button": 9728,
+      "star1": 77,
+      "star2": 77,
+      "star3": 75
+    },
+    "saved": {
+      "progress": [
+        1
+      ],
+      "result": {
+        "bestMs": 19269,
+        "stars": 3
+      }
+    },
+    "errors": []
+  },
+  {
+    "size": "390x844",
+    "elapsedMs": 24670,
+    "stars": 3,
+    "picture": {
+      "x": 8,
+      "y": 143.5,
+      "width": 374,
+      "height": 561
+    },
+    "button": {
+      "type": 5,
+      "x": 40,
+      "y": 744.5,
+      "width": 310,
+      "height": 52
+    },
+    "pixels": {
+      "title": 1030,
+      "time": 276,
+      "button": 11418,
+      "star1": 114,
+      "star2": 116,
+      "star3": 117
+    },
+    "saved": {
+      "progress": [
+        1
+      ],
+      "result": {
+        "bestMs": 24670,
+        "stars": 3
+      }
+    },
+    "errors": []
+  },
+  {
+    "size": "430x932",
+    "elapsedMs": 34148,
+    "stars": 3,
+    "picture": {
+      "x": 8,
+      "y": 157.5,
+      "width": 414,
+      "height": 621
+    },
+    "button": {
+      "type": 5,
+      "x": 60,
+      "y": 818.5,
+      "width": 310,
+      "height": 52
+    },
+    "pixels": {
+      "title": 1030,
+      "time": 276,
+      "button": 11419,
+      "star1": 114,
+      "star2": 116,
+      "star3": 117
+    },
+    "saved": {
+      "progress": [
+        1
+      ],
+      "result": {
+        "bestMs": 34148,
+        "stars": 3
+      }
+    },
+    "errors": []
+  },
+  {
+    "size": "1920x1080",
+    "elapsedMs": 69699,
+    "stars": 3,
+    "picture": {
+      "x": 444,
+      "y": 105,
+      "width": 580,
+      "height": 870
+    },
+    "button": {
+      "type": 5,
+      "x": 1136,
+      "y": 777.6,
+      "width": 300,
+      "height": 62
+    },
+    "pixels": {
+      "title": 2227,
+      "time": 568,
+      "button": 12587,
+      "star1": 445,
+      "star2": 448,
+      "star3": 450
+    },
+    "saved": {
+      "progress": [
+        1
+      ],
+      "result": {
+        "bestMs": 69699,
+        "stars": 3
+      }
+    },
+    "errors": []
+  }
+]
