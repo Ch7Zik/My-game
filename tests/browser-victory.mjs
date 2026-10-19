@@ -105,6 +105,7 @@ async function runSize(browser, width, height) {
   try {
     await page.goto(base);
     await page.waitForFunction(() => window.__mysticGame?.scene?.getScene('puzzle')?.menuArt?.active);
+    assert.equal(await page.locator('#build-version').count(), 0);
     const play = await page.evaluate(() => {
       const button = window.__mysticGame.scene.getScene('puzzle').menuButton();
       return { x: button.centerX, y: button.centerY };
@@ -112,191 +113,167 @@ async function runSize(browser, width, height) {
     if (mobile) await page.touchscreen.tap(play.x, play.y);
     else await page.mouse.click(play.x, play.y);
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 4);
+    const game = await page.evaluate(() => {
+      const s = window.__mysticGame.scene.getScene('puzzle');
+      return { board: s.board, back: s.backButton(), hint: s.hintButton(),
+        labels: s.children.list.filter(c => c.getData('uiText')).map(c => ({ text: c.text, bounds: c.getBounds() })) };
+    });
+    const level = game.labels.find(l => l.text === 'УРОВЕНЬ 01');
+    const name = game.labels.find(l => l.text === 'Домик у озера');
+    const timer = game.labels.find(l => /^\d\d:\d\d$/.test(l.text));
+    for (const label of [level, name, timer]) assert.ok(label && inside(label.bounds, { x: 0, y: 0, width, height }));
+    assert.ok(!overlaps(level.bounds, timer.bounds));
+    assert.ok(!overlaps(name.bounds, level.bounds));
+    assert.ok(!overlaps(name.bounds, timer.bounds));
+    assert.ok(name.bounds.y + name.bounds.height < game.board.y);
+    assert.ok(name.bounds.x > game.back.x + 19 && name.bounds.x + name.bounds.width < game.hint.x - 19);
+    if (screenshots) {
+      mkdirSync(screenshots, { recursive: true });
+      await page.screenshot({ path: `${screenshots}/game-${width}x${height}.jpg`, type: 'jpeg', quality: 88 });
+    }
     if (width === 360) {
-      const originalTitle = await page.evaluate(() => {
-        const scene = window.__mysticGame.scene.getScene('puzzle');
-        const original = scene.level.title;
-        scene.level = { ...scene.level, title: 'Необычайно длинное название волшебной картины среди далёких гор' };
-        scene.draw();
-        return original;
+      await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
+        s.level = { ...s.level, title: 'Необычайно длинное название волшебной картины среди далёких гор' }; s.draw(); });
+      const long = await page.evaluate(() => {
+        const s = window.__mysticGame.scene.getScene('puzzle');
+        const label = s.children.list.find(c => c.getData('uiText') && c.text.startsWith('Необычайно'));
+        return { text: label?.text, bounds: label?.getBounds(), board: s.board };
       });
-      const longTitle = await page.evaluate(() => {
-        const scene = window.__mysticGame.scene.getScene('puzzle');
-        const label = scene.children.list.find(child => child.getData('uiText') && child.text.includes('Необычайно'));
-        return { bounds: label?.getBounds(), text: label?.text, back: scene.backButton(), hint: scene.hintButton(), picture: scene.board };
-      });
-      assert.ok(longTitle.text.endsWith('…'));
-      assert.ok(longTitle.bounds.x > longTitle.back.x + 20);
-      assert.ok(longTitle.bounds.x + longTitle.bounds.width < longTitle.hint.x - 20);
-      assert.ok(longTitle.bounds.y + longTitle.bounds.height < longTitle.picture.y);
-      await page.evaluate(title => {
-        const scene = window.__mysticGame.scene.getScene('puzzle');
-        scene.level = { ...scene.level, title }; scene.draw();
-      }, originalTitle);
+      assert.ok(long.text.endsWith('…'));
+      assert.ok(inside(long.bounds, { x: game.back.x + 23, y: 0, width: game.hint.x - game.back.x - 46, height: game.board.y }));
+      await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
+        s.level = { ...s.level, title: 'Домик у озера' }; s.draw(); });
     }
     const cdp = mobile ? await context.newCDPSession(page) : null;
-    const ids = await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').pieces.map(piece => piece.id).sort((a, b) => b - a));
+    const ids = await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').pieces.map(p => p.id).sort((a, b) => b - a));
     for (const id of ids) {
+      if (width === 430 && id === ids.at(-1)) await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').tweens.pauseAll());
       const { start, target } = await dragCoordinates(page, id);
       await drag(page, cdp, start, target);
-      await page.waitForFunction(pieceId => window.__mysticGame.scene.getScene('puzzle').pieces.find(piece => piece.id === pieceId).placed, id);
+      await page.waitForFunction(pieceId => window.__mysticGame.scene.getScene('puzzle').pieces.find(p => p.id === pieceId).placed, id);
       if (id !== ids.at(-1)) await page.waitForTimeout(310);
     }
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'complete');
-    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    const result = await page.evaluate(isMobile => {
-      const scene = window.__mysticGame.scene.getScene('puzzle');
-      const labels = scene.children.list.filter(child => child.getData('uiText')).map(child => ({
-        text: child.text, x: child.x, y: child.y, width: child.width, height: child.height,
-        visible: child.visible, active: child.active, alpha: child.alpha, depth: child.depth,
-        bounds: child.getBounds(),
-      }));
-      const log = JSON.parse(localStorage.getItem('mystic-puzzles-victory-log-v1') || '[]');
-      return { mode: scene.mode, completedMs: scene.completedMs, stars: scene.results[1]?.stars,
-        button: scene.nextButton(), picture: scene.victoryPictureRect(),
-        layout: isMobile ? scene.victoryMobileLayout() : null,
-        card: isMobile ? null : scene.victoryCard(),
-        completeImage: { visible: scene.completeImage?.visible, alpha: scene.completeImage?.alpha,
-          bounds: scene.completeImage?.getBounds(), depth: scene.completeImage?.depth },
-        chrome: { visible: scene.chrome.visible, alpha: scene.chrome.alpha, depth: scene.chrome.depth },
-        labels, log,
-        progress: scene.progress.completed, scrollWidth: document.documentElement.scrollWidth,
+    const result = await page.evaluate(() => {
+      const s = window.__mysticGame.scene.getScene('puzzle');
+      return { mode: s.mode, completedMs: s.completedMs, stars: s.results[1]?.stars,
+        layout: s.victoryScreenLayout(), button: s.nextButton(),
+        image: { visible: s.completeImage?.visible, bounds: s.completeImage?.getBounds() },
+        labels: s.children.list.filter(c => c.getData('uiText')).map(c => ({ text: c.text, visible: c.visible,
+          alpha: c.alpha, bounds: c.getBounds() })), progress: s.progress.completed,
+        log: JSON.parse(localStorage.getItem('mystic-puzzles-victory-log-v1') || '[]'),
+        scrollWidth: document.documentElement.scrollWidth,
         badge: document.getElementById('build-version')?.textContent };
-    }, mobile);
+    });
     assert.equal(result.mode, 'complete');
-    assert.ok(result.completedMs > 0);
-    assert.ok(result.stars >= 1 && result.stars <= 3);
+    assert.ok(result.completedMs > 0 && result.stars >= 1 && result.stars <= 3);
     assert.ok(result.progress.includes(1));
-    const title = result.labels.find(label => label.text === 'Картина собрана!');
-    const time = result.labels.find(label => label.text === `Время ${String(Math.floor(result.completedMs / 60000)).padStart(2, '0')}:${String(Math.floor(result.completedMs / 1000) % 60).padStart(2, '0')}`);
-    const nextLabel = result.labels.find(label => label.text === 'Далее');
+    assert.ok(result.log.some(e => e.event === 'result-saved') && result.log.some(e => e.event === 'ui-drawn'));
+    assert.equal(result.badge, undefined);
+    assert.equal(result.scrollWidth, width);
+    assert.ok(result.image.visible);
+    assert.ok(inside(result.image.bounds, { x: 0, y: 0, width, height }));
+    const { picture } = result.layout;
+    assert.ok(Math.abs(result.image.bounds.width - picture.width) < 1);
+    assert.ok(Math.abs(result.image.bounds.height - picture.height) < 1);
+    const title = result.labels.find(l => l.text === 'Картина собрана!');
+    const time = result.labels.find(l => l.text === `Время ${String(Math.floor(result.completedMs / 60000)).padStart(2, '0')}:${String(Math.floor(result.completedMs / 1000) % 60).padStart(2, '0')}`);
+    const nextLabel = result.labels.find(l => l.text === 'Далее');
     for (const label of [title, time, nextLabel]) {
-      assert.ok(label?.visible && label.active && label.alpha === 1 && label.depth > result.completeImage.depth);
+      assert.ok(label?.visible && label.alpha === 1);
       assert.ok(inside(label.bounds, { x: 0, y: 0, width, height }));
     }
-    assert.ok(result.completeImage.visible && result.completeImage.alpha === 1);
-    assert.ok(result.chrome.visible && result.chrome.alpha === 1 && result.chrome.depth > result.completeImage.depth);
-    assert.ok(inside(result.completeImage.bounds, { x: 0, y: 0, width, height }));
-    assert.ok(Math.abs(result.completeImage.bounds.width - result.picture.width) < 1);
-    assert.ok(Math.abs(result.completeImage.bounds.height - result.picture.height) < 1);
-    assert.ok(result.log.some(entry => entry.event === 'result-saved'));
-    assert.ok(result.log.some(entry => entry.event === 'ui-drawn'));
-    assert.ok(result.badge?.includes('Победа-2'));
-    if (mobile) {
-      assert.ok(result.button.y >= result.picture.y + result.picture.height + 8);
-      assert.ok(inside(title.bounds, result.layout.results));
-      assert.ok(inside(time.bounds, result.layout.results));
-      assert.ok(inside(nextLabel.bounds, result.button));
-      assert.ok(!overlaps(title.bounds, time.bounds));
-      assert.ok(!overlaps(time.bounds, result.button));
-      assert.ok(!overlaps(result.layout.results, result.picture));
-    } else {
-      assert.ok(inside(title.bounds, result.card));
-      assert.ok(inside(time.bounds, result.card));
-      assert.ok(inside(nextLabel.bounds, result.button));
-      assert.ok(!overlaps(result.card, result.picture));
+    assert.ok(inside(nextLabel.bounds, result.button));
+    assert.ok(!overlaps(result.button, result.image.bounds));
+    assert.ok(!overlaps(title.bounds, result.image.bounds));
+    assert.ok(!overlaps(time.bounds, result.image.bounds));
+    if (width === 360) {
+      await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
+        s.level = { ...s.level, title: 'Необычайно длинное название волшебной картины среди далёких гор' }; s.draw(); });
+      const long = await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
+        const l = s.children.list.find(c => c.getData('uiText') && c.text.startsWith('Необычайно'));
+        return { text: l?.text, bounds: l?.getBounds(), layout: s.victoryScreenLayout() }; });
+      assert.ok(long.text.endsWith('…'));
+      assert.ok(inside(long.bounds, { x: 0, y: 0, width, height }));
+      assert.ok(!overlaps(long.bounds, long.layout.picture));
+      await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
+        s.level = { ...s.level, title: 'Домик у озера' }; s.draw(); });
     }
-    assert.ok(result.button.y + result.button.height <= height);
-    assert.equal(result.scrollWidth, width);
-    assert.deepEqual(errors, []);
-    const starsX = mobile ? width / 2 + 78 : result.card.x + result.card.width / 2;
-    const starsY = mobile ? result.layout.detailsY : result.card.y + 88;
-    const starRadius = mobile ? result.layout.compact ? 7 : 8 : 12;
-    const areas = { title: title.bounds, time: time.bounds, button: result.button };
-    for (let star = -1; star <= 1; star++) areas[`star${star + 2}`] = {
-      x: starsX + star * starRadius * 2.6 - starRadius / 2,
-      y: starsY - starRadius / 2, width: starRadius, height: starRadius,
-    };
+    await page.waitForTimeout(750);
     const screenshot = await page.screenshot({ type: 'png' });
+    const starR = result.layout.starRadius;
+    const starX = result.layout.contentX;
+    const starY = result.layout.starsY;
+    const areas = { title: title.bounds, time: time.bounds, button: result.button };
+    for (let i = -1; i <= 1; i++) areas[`star${i + 2}`] = {
+      x: starX + i * starR * 2.6 - starR / 2, y: starY - starR / 2, width: starR, height: starR,
+    };
     const pixels = await visibleGoldPixels(page, screenshot, areas);
     assert.ok(pixels.title > 10 && pixels.time > 10 && pixels.button > 100, JSON.stringify(pixels));
-    for (let star = 1; star <= 3; star++) assert.ok(pixels[`star${star}`] > 3, JSON.stringify(pixels));
-    if (screenshots) {
-      mkdirSync(screenshots, { recursive: true });
-      await page.screenshot({ path: `${screenshots}/victory-${width}x${height}.jpg`, type: 'jpeg', quality: 88 });
-    }
+    for (let i = 1; i <= 3; i++) assert.ok(pixels[`star${i}`] > 3, JSON.stringify(pixels));
+    if (screenshots) await page.screenshot({ path: `${screenshots}/victory-${width}x${height}.jpg`, type: 'jpeg', quality: 88 });
     if (width === 390) {
-      await page.evaluate(() => {
-        document.documentElement.style.setProperty('--safe-top', '47px');
-        document.documentElement.style.setProperty('--safe-bottom', '34px');
-      });
+      await page.evaluate(() => { document.documentElement.style.setProperty('--safe-top', '47px');
+        document.documentElement.style.setProperty('--safe-bottom', '34px'); });
       await page.setViewportSize({ width: 360, height: 640 });
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').viewWidth() === 360);
-      const resized = await page.evaluate(() => {
-        const scene = window.__mysticGame.scene.getScene('puzzle');
-        return { mode: scene.mode, layout: scene.victoryMobileLayout(),
-          texts: scene.children.list.filter(child => child.getData('uiText')).map(child => child.text),
-          complete: scene.completeImage?.visible };
-      });
-      assert.equal(resized.mode, 'complete');
-      assert.ok(resized.complete && resized.texts.includes('Картина собрана!') && resized.texts.includes('Далее'));
-      assert.ok(resized.layout.picture.y >= 107);
-      assert.ok(resized.layout.button.y + resized.layout.button.height <= 640 - 34);
-      await page.evaluate(() => {
-        document.documentElement.style.removeProperty('--safe-top');
-        document.documentElement.style.removeProperty('--safe-bottom');
-      });
+      const resized = await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
+        return { layout: s.victoryScreenLayout(), image: s.completeImage?.getBounds(),
+          texts: s.children.list.filter(c => c.getData('uiText')).map(c => c.text) }; });
+      assert.ok(resized.layout.picture.y >= 47);
+      assert.ok(resized.layout.button.y + resized.layout.button.height <= 606);
+      assert.ok(resized.texts.includes('Картина собрана!') && resized.texts.includes('Далее'));
+      await page.evaluate(() => { document.documentElement.style.removeProperty('--safe-top');
+        document.documentElement.style.removeProperty('--safe-bottom'); });
       await page.setViewportSize({ width, height });
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').viewWidth() === 390);
-      await page.waitForFunction(() => {
-        const rect = document.querySelector('canvas')?.getBoundingClientRect();
-        return rect && Math.abs(rect.width - innerWidth) < 2 && Math.abs(rect.height - innerHeight) < 2;
-      });
-      const otherPage = await context.newPage();
-      await otherPage.bringToFront();
-      await page.waitForTimeout(150);
-      await page.bringToFront();
-      await otherPage.close();
+      const other = await context.newPage(); await other.bringToFront(); await page.waitForTimeout(100);
+      await page.bringToFront(); await other.close();
       assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').mode), 'complete');
     }
-    const next = width === 390 ? await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').nextButton()) : result.button;
+    const next = await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').nextButton());
     if (mobile) await page.touchscreen.tap(next.x + next.width / 2, next.y + next.height / 2);
     else await page.mouse.click(next.x + next.width / 2, next.y + next.height / 2);
-    await page.waitForTimeout(350);
-    const afterTap = await page.evaluate(() => {
-      const scene = window.__mysticGame.scene.getScene('puzzle');
-      return { mode: scene.mode, level: scene.level.id, button: scene.nextButton(),
-        canvas: document.querySelector('canvas')?.getBoundingClientRect(),
-        viewport: { width: innerWidth, height: innerHeight },
-        log: JSON.parse(localStorage.getItem('mystic-puzzles-victory-log-v1') || '[]').slice(-3) };
-    });
-    assert.ok(afterTap.mode === 'game' && afterTap.level === 2, JSON.stringify(afterTap));
+    await page.waitForFunction(() => { const s = window.__mysticGame.scene.getScene('puzzle');
+      return s.mode === 'game' && s.level.id === 2; });
     await page.reload();
     await page.waitForFunction(() => window.__mysticGame?.scene?.getScene('puzzle')?.menuArt?.active);
-    const saved = await page.evaluate(() => ({
-      progress: window.__mysticGame.scene.getScene('puzzle').progress.completed,
-      result: window.__mysticGame.scene.getScene('puzzle').results[1],
-    }));
-    assert.ok(saved.progress.includes(1));
-    assert.ok(saved.result.bestMs > 0);
-    assert.ok(saved.result.stars >= 1 && saved.result.stars <= 3);
+    const saved = await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
+      return { progress: s.progress.completed, result: s.results[1] }; });
+    assert.ok(saved.progress.includes(1) && saved.result.bestMs > 0 && saved.result.stars >= 1);
     if (width === 390) {
-      const levelButton = await page.evaluate(() => {
-        const rect = window.__mysticGame.scene.getScene('puzzle').levelsButton();
-        return { x: rect.centerX, y: rect.centerY };
-      });
+      const galleryButton = await page.evaluate(() => { const b = window.__mysticGame.scene.getScene('puzzle').galleryButton();
+        return { x: b.centerX, y: b.centerY }; });
+      await page.touchscreen.tap(galleryButton.x, galleryButton.y);
+      await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'gallery');
+      assert.equal(await page.locator('#build-version').count(), 0);
+      const back = await page.evaluate(() => { const b = window.__mysticGame.scene.getScene('puzzle').backButton();
+        return { x: b.x, y: b.y }; });
+      await page.touchscreen.tap(back.x, back.y);
+      const levelButton = await page.evaluate(() => { const b = window.__mysticGame.scene.getScene('puzzle').levelsButton();
+        return { x: b.centerX, y: b.centerY }; });
       await page.touchscreen.tap(levelButton.x, levelButton.y);
-      const firstCard = await page.evaluate(() => {
-        const rect = window.__mysticGame.scene.getScene('puzzle').cardRects()[0];
-        return { x: rect.centerX, y: rect.centerY };
-      });
+      const firstCard = await page.evaluate(() => { const b = window.__mysticGame.scene.getScene('puzzle').cardRects()[0];
+        return { x: b.centerX, y: b.centerY }; });
       await page.touchscreen.tap(firstCard.x, firstCard.y);
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 4);
       for (const id of ids) {
         const { start, target } = await dragCoordinates(page, id);
         await drag(page, cdp, start, target);
-        await page.waitForFunction(pieceId => window.__mysticGame.scene.getScene('puzzle').pieces.find(piece => piece.id === pieceId).placed, id);
+        await page.waitForFunction(pieceId => window.__mysticGame.scene.getScene('puzzle').pieces.find(p => p.id === pieceId).placed, id);
         if (id !== ids.at(-1)) await page.waitForTimeout(310);
       }
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'complete');
       const replay = await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').results[1]);
-      assert.ok(replay.bestMs <= saved.result.bestMs);
-      assert.ok(replay.stars >= saved.result.stars);
+      assert.ok(replay.bestMs <= saved.result.bestMs && replay.stars >= saved.result.stars);
+      const victoryGallery = await page.evaluate(() => { const b = window.__mysticGame.scene.getScene('puzzle').hintButton();
+        return { x: b.x, y: b.y }; });
+      await page.touchscreen.tap(victoryGallery.x, victoryGallery.y);
+      await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'gallery');
     }
     assert.deepEqual(errors, []);
     return { size: `${width}x${height}`, elapsedMs: Math.round(result.completedMs), stars: result.stars,
-      button: result.button, picture: result.picture, layout: result.layout, pixels,
-      badge: result.badge, saved, errors };
+      picture, button: result.button, pixels, saved, errors };
   } finally { await context.close(); }
 }
 

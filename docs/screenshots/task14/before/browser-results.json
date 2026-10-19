@@ -1,0 +1,164 @@
+[
+  {
+    "size": "360x640",
+    "elapsedMs": 24221,
+    "stars": 3,
+    "button": {
+      "type": 5,
+      "x": 39.599999999999994,
+      "y": 584,
+      "width": 280.8,
+      "height": 44
+    },
+    "picture": {
+      "type": 5,
+      "x": 30.373333333333335,
+      "y": 63.12,
+      "width": 299.25333333333333,
+      "height": 448.88
+    },
+    "layout": {
+      "headerTop": 0,
+      "picture": {
+        "x": 30.373333333333335,
+        "y": 63.12,
+        "width": 299.25333333333333,
+        "height": 448.88
+      },
+      "results": {
+        "x": 12,
+        "y": 520,
+        "width": 336,
+        "height": 112
+      },
+      "button": {
+        "x": 39.599999999999994,
+        "y": 584,
+        "width": 280.8,
+        "height": 44
+      },
+      "titleY": 536,
+      "detailsY": 563,
+      "compact": true
+    },
+    "pixels": {
+      "title": 262,
+      "time": 200,
+      "button": 8992,
+      "star1": 46,
+      "star2": 46,
+      "star3": 46
+    },
+    "badge": "Победа-2 · local",
+    "saved": {
+      "progress": [
+        1
+      ],
+      "result": {
+        "bestMs": 24221,
+        "stars": 3
+      }
+    },
+    "errors": []
+  },
+  {
+    "size": "390x844",
+    "elapsedMs": 19336,
+    "stars": 3,
+    "button": {
+      "type": 5,
+      "x": 42.900000000000006,
+      "y": 733.82,
+      "width": 304.2,
+      "height": 50
+    },
+    "picture": {
+      "type": 5,
+      "x": 4,
+      "y": 82.82000000000001,
+      "width": 382,
+      "height": 573
+    },
+    "layout": {
+      "headerTop": 0,
+      "picture": {
+        "x": 4,
+        "y": 82.82000000000001,
+        "width": 382,
+        "height": 573
+      },
+      "results": {
+        "x": 12,
+        "y": 663.82,
+        "width": 366,
+        "height": 124
+      },
+      "button": {
+        "x": 42.900000000000006,
+        "y": 733.82,
+        "width": 304.2,
+        "height": 50
+      },
+      "titleY": 682.82,
+      "detailsY": 715.82,
+      "compact": false
+    },
+    "pixels": {
+      "title": 342,
+      "time": 215,
+      "button": 10908,
+      "star1": 60,
+      "star2": 60,
+      "star3": 59
+    },
+    "badge": "Победа-2 · local",
+    "saved": {
+      "progress": [
+        1
+      ],
+      "result": {
+        "bestMs": 19336,
+        "stars": 3
+      }
+    },
+    "errors": []
+  },
+  {
+    "size": "1920x1080",
+    "elapsedMs": 84382,
+    "stars": 3,
+    "button": {
+      "type": 5,
+      "x": 1157.2,
+      "y": 605,
+      "width": 282,
+      "height": 52
+    },
+    "picture": {
+      "x": 426.79999999999995,
+      "y": 96.5,
+      "width": 590,
+      "height": 885
+    },
+    "layout": null,
+    "pixels": {
+      "title": 778,
+      "time": 481,
+      "button": 10232,
+      "star1": 139,
+      "star2": 138,
+      "star3": 139
+    },
+    "badge": "Победа-2 · local",
+    "saved": {
+      "progress": [
+        1
+      ],
+      "result": {
+        "bestMs": 84382,
+        "stars": 3
+      }
+    },
+    "errors": []
+  }
+]

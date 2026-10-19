@@ -8,7 +8,7 @@ import { assetUrl } from './assetUrl';
 import { PuzzleAudio } from './audio';
 import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, saveProgress, selectLevel, type Progress } from './progress';
 import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay, starsForTime, type Results } from './results';
-import { mobileVictoryLayout } from './victoryLayout';
+import { victoryScreenLayout } from './victoryLayout';
 import './style.css';
 
 type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion; placed: boolean; home: Point; slot: number; hit: Uint8Array; texW: number; texH: number; baseW: number; baseH: number };
@@ -54,6 +54,8 @@ class PuzzleScene extends Phaser.Scene {
   private guideImage: Phaser.GameObjects.Image | null = null;
   private previewImage: Phaser.GameObjects.Image | null = null;
   private completeImage: Phaser.GameObjects.Image | null = null;
+  private revealImage: Phaser.GameObjects.Image | null = null;
+  private revealStartedAt = 0;
   private raster = { width: 0, height: 0 };
   private audio = new PuzzleAudio(safeStorage);
   private soundPanelOpen = false;
@@ -169,6 +171,7 @@ class PuzzleScene extends Phaser.Scene {
     }
     this.guideImage?.setPosition(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2).setDisplaySize(this.board.width, this.board.height);
     this.completeImage?.setPosition(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2).setDisplaySize(this.board.width, this.board.height);
+    this.revealImage?.setPosition(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2).setDisplaySize(this.board.width, this.board.height);
   }
 
   private pointerDown(pointer: Phaser.Input.Pointer) {
@@ -200,8 +203,8 @@ class PuzzleScene extends Phaser.Scene {
       return;
     }
     if (this.mode === 'view') { if (this.backButton().contains(x, y)) { this.mode = 'gallery'; this.draw(); } return; }
-    if (this.backButton().contains(x, y)) { this.mode = 'levels'; this.removePieces(); this.draw(); return; }
     if (this.mode === 'complete') {
+      if (this.backButton().contains(x, y)) { this.removePieces(); this.mode = 'levels'; this.draw(); return; }
       if (this.hintButton().contains(x, y)) { this.removePieces(); this.mode = 'gallery'; this.draw(); return; }
       if (canAdvance(true, this.nextButton().contains(x, y))) {
         this.logVictory('next-pressed');
@@ -211,6 +214,7 @@ class PuzzleScene extends Phaser.Scene {
       }
       return;
     }
+    if (this.backButton().contains(x, y)) { this.mode = 'levels'; this.removePieces(); this.draw(); return; }
     if (this.hintButton().contains(x, y)) { this.showHint(); return; }
     const hit = [...this.pieces].sort((a, b) => b.sprite.depth - a.sprite.depth).find(p => canDrag(p.placed) && this.pieceContains(p, x, y));
     if (!hit) return;
@@ -278,7 +282,13 @@ class PuzzleScene extends Phaser.Scene {
     this.mode = 'complete';
     this.victoryUiLogged = false;
     window.setTimeout(() => { if (this.mode === 'complete') this.audio.play('complete'); }, 300);
-    this.completeImage = this.add.image(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2, 'whole-picture').setDepth(60).setDisplaySize(this.board.width, this.board.height);
+    const picture = this.victoryScreenLayout().picture;
+    this.completeImage = this.add.image(picture.x + picture.width / 2, picture.y + picture.height / 2, 'whole-picture').setDepth(60).setDisplaySize(picture.width, picture.height);
+    // The assembled board lingers and fades above the new composition. Results
+    // already exist below it; no tween or delayed callback controls their state.
+    this.revealImage = this.add.image(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2, 'whole-picture')
+      .setDepth(61).setDisplaySize(this.board.width, this.board.height);
+    this.revealStartedAt = performance.now();
     this.pieces.forEach(piece => piece.sprite.setVisible(false));
     this.guideImage?.setVisible(false);
     this.progress = completeLevel(this.progress, this.level.id);
@@ -319,6 +329,7 @@ class PuzzleScene extends Phaser.Scene {
     this.dragging = null; this.hintPiece = null; this.pieces.forEach(p => p.sprite.destroy()); this.pieces = [];
     this.guideImage?.destroy(); this.guideImage = null; this.previewImage?.destroy(); this.previewImage = null;
     this.completeImage?.destroy(); this.completeImage = null;
+    this.revealImage?.destroy(); this.revealImage = null;
     for (let id = 0; id < 8; id++) { if (this.textures.exists(`piece-clean-${id}`)) this.textures.remove(`piece-clean-${id}`); if (this.textures.exists(`piece-loose-${id}`)) this.textures.remove(`piece-loose-${id}`); }
     if (this.textures.exists('whole-picture')) this.textures.remove('whole-picture');
   }
@@ -330,45 +341,30 @@ class PuzzleScene extends Phaser.Scene {
   private galleryButton() { const w = this.viewWidth(), h = this.viewHeight(), width = Math.min(w >= 900 ? 170 : 155, w * .41); return new Phaser.Geom.Rectangle(w / 2 + 7, h < 700 ? h - 50 : h - 72, width, 44); }
   private levelsButton() { const w = this.viewWidth(), h = this.viewHeight(), width = Math.min(w >= 900 ? 170 : 155, w * .41); return new Phaser.Geom.Rectangle(w / 2 - width - 7, h < 700 ? h - 50 : h - 72, width, 44); }
   private nextButton() {
-    const w = this.viewWidth(), h = this.viewHeight();
-    if (this.mode === 'complete' && !this.preview) {
-      const button = this.victoryMobileLayout().button;
+    const w = this.viewWidth();
+    if (this.mode === 'complete') {
+      const button = this.victoryScreenLayout().button;
       return new Phaser.Geom.Rectangle(button.x, button.y, button.width, button.height);
     }
-    const width = Math.min(this.preview ? 282 : 310, w * .76);
-    const x = this.preview ? this.preview.x + (this.preview.width - width) / 2 : (w - width) / 2;
-    const buttonHeight = h < 700 ? 44 : 52;
-    const safeBottom = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom')) || 0;
-    const y = this.preview ? this.victoryCard().y + 196
-      : Math.min(this.board.y + this.board.height + (h < 700 ? 0 : 80), h - Math.max(20, safeBottom + 16) - buttonHeight);
-    return new Phaser.Geom.Rectangle(x, y, width, buttonHeight);
-  }
-  private victoryCard() {
-    const p = this.preview!;
-    const width = Math.min(350, p.width), height = 260;
-    return new Phaser.Geom.Rectangle(p.x + (p.width - width) / 2, p.y + (p.height - height) / 2, width, height);
+    return new Phaser.Geom.Rectangle((w - 310) / 2, this.viewHeight() - 72, 310, 52);
   }
   private safeInset(side: 'top' | 'bottom') {
     const value = getComputedStyle(document.documentElement).getPropertyValue(`--safe-${side}`);
     return Math.max(0, parseFloat(value) || 0);
   }
-  private victoryMobileLayout() {
-    return mobileVictoryLayout(this.viewWidth(), this.viewHeight(), this.board,
+  private victoryScreenLayout() {
+    return victoryScreenLayout(this.viewWidth(), this.viewHeight(),
       this.safeInset('top'), this.safeInset('bottom'));
-  }
-  private victoryPictureRect() {
-    const board = this.board;
-    if (this.preview) return board;
-    const picture = this.victoryMobileLayout().picture;
-    return new Phaser.Geom.Rectangle(picture.x, picture.y, picture.width, picture.height);
   }
   private backButton() {
     const w = this.viewWidth(), h = this.viewHeight();
     if (this.mode === 'levels' || this.mode === 'gallery' || this.mode === 'view') return new Phaser.Geom.Circle(w >= 900 ? Math.max(54, (w - 1560) / 2 + 30) : 35, h < 700 ? 39 : w >= 900 ? 62 : 46, 25);
-    const top = this.mode === 'complete' && !this.preview ? this.safeInset('top') : 0;
-    return new Phaser.Geom.Circle(this.headerCenter() - this.headerWidth() / 2 + 27, (w < 900 ? 30 : 40) + top, 24);
+    if (this.mode === 'complete') return new Phaser.Geom.Circle(w < 900 ? 30 : 43, (w < 900 ? 30 : 43) + this.safeInset('top'), 24);
+    return new Phaser.Geom.Circle(this.headerCenter() - this.headerWidth() / 2 + 27, w < 900 ? 30 : 40, 24);
   }
-  private hintButton() { const w = this.viewWidth(), top = this.mode === 'complete' && !this.preview ? this.safeInset('top') : 0; return new Phaser.Geom.Circle(this.headerCenter() + this.headerWidth() / 2 - 27, (w < 900 ? 30 : 40) + top, 24); }
+  private hintButton() { const w = this.viewWidth();
+    if (this.mode === 'complete') return new Phaser.Geom.Circle(w - (w < 900 ? 30 : 43), (w < 900 ? 30 : 43) + this.safeInset('top'), 24);
+    return new Phaser.Geom.Circle(this.headerCenter() + this.headerWidth() / 2 - 27, w < 900 ? 30 : 40, 24); }
   private headerCenter() { return this.preview ? this.board.x + this.board.width / 2 : this.viewWidth() / 2; }
   private headerWidth() { return this.preview ? this.board.width : Math.min(this.viewWidth() - 8, 440); }
 
@@ -382,7 +378,21 @@ class PuzzleScene extends Phaser.Scene {
       const label = formatTime(this.elapsedMs);
       if (label !== this.displayedTime) { this.timerText?.setText(label); this.displayedTime = label; }
     }
+    if (this.revealImage) {
+      const elapsed = performance.now() - this.revealStartedAt;
+      this.revealImage.setAlpha(Math.max(0, Math.min(1, (680 - elapsed) / 420)));
+      if (elapsed >= 680) { this.revealImage.destroy(); this.revealImage = null; }
+    }
     this.fx.clear();
+    if (this.mode === 'complete' && this.revealImage) {
+      const phase = Math.min(1, (performance.now() - this.revealStartedAt) / 680);
+      const glow = Math.sin(Math.PI * phase);
+      this.revealImage.setTint(0xfff4df);
+      this.fx.lineStyle(8, 0xffc76e, glow * .12).strokeRoundedRect(
+        this.board.x - 3, this.board.y - 3, this.board.width + 6, this.board.height + 6, 8);
+      this.fx.lineStyle(2, 0xffe1a1, glow * .65).strokeRoundedRect(
+        this.board.x - 1, this.board.y - 1, this.board.width + 2, this.board.height + 2, 6);
+    }
     if (this.dragging) {
       const p = this.dragging, distance = Math.hypot(p.sprite.x - p.home.x, p.sprite.y - p.home.y);
       const range = Math.max(70, this.board.width * .27);
@@ -420,6 +430,7 @@ class PuzzleScene extends Phaser.Scene {
     if (this.mode === 'menu') this.drawMenu(w, h);
     else if (this.mode === 'levels' || this.mode === 'gallery') this.drawCards(w);
     else if (this.mode === 'view') this.drawGalleryView(w, h);
+    else if (this.mode === 'complete') this.drawVictory(w, h);
     else this.drawGame(w, h);
   }
   private drawAtmosphere(w: number, h: number) {
@@ -587,7 +598,7 @@ class PuzzleScene extends Phaser.Scene {
   }
   private drawGame(w: number, h: number) {
     this.menuArt?.setVisible(false);
-    const b = this.mode === 'complete' ? this.victoryPictureRect() : this.board, mobile = w < 900;
+    const b = this.board, mobile = w < 900;
     // Keep the board rectangle and all piece coordinates intact; the scenery is behind it.
     const background = this.add.image(w / 2, h / 2, 'game-endpaper').setDepth(.5).setDisplaySize(w, h);
     this.uiImages.push(background);
@@ -596,95 +607,89 @@ class PuzzleScene extends Phaser.Scene {
     this.boardG.lineStyle(1.2, 0xd6ad72, .85).strokeRoundedRect(b.x - 2, b.y - 2, b.width + 4, b.height + 4, 6);
     this.boardG.lineStyle(1, 0xffe0aa, .18).strokeRoundedRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2, 4);
     this.guideImage?.setPosition(b.x + b.width / 2, b.y + b.height / 2).setDisplaySize(b.width, b.height);
-    this.completeImage?.setPosition(b.x + b.width / 2, b.y + b.height / 2).setDisplaySize(b.width, b.height);
-    if (this.preview && this.mode === 'game' && this.previewImage) {
+    if (this.preview && this.previewImage) {
       const p = this.preview;
       this.boardG.fillStyle(0x081724, .7).fillRoundedRect(p.x - 4, p.y - 4, p.width + 8, p.height + 8, 7);
       this.boardG.lineStyle(1.2, 0xcda56f, .76).strokeRoundedRect(p.x - 4, p.y - 4, p.width + 8, p.height + 8, 7);
       this.previewImage.setVisible(true).setPosition(p.x + p.width / 2, p.y + p.height / 2).setDisplaySize(p.width, p.height);
     } else this.previewImage?.setVisible(false);
 
-    const details = this.mode === 'complete';
-    const compactVictory = details && !this.preview;
-    const victoryLayout = compactVictory ? this.victoryMobileLayout() : null;
-    const hx = this.headerCenter(), hw = this.headerWidth(), headerH = mobile || compactVictory ? 54 : 70;
-    const headerTop = victoryLayout?.headerTop ?? 0;
-    const header = this.add.image(hx, headerTop + 3 + headerH / 2, 'header-ornate').setDepth(115)
-      .setDisplaySize(hw + 4, headerH + 9);
-    this.uiImages.push(header);
+    const hx = this.headerCenter(), hw = this.headerWidth();
+    const headerH = mobile ? 58 : 72;
+    // A quiet, fixed header grid: controls at the edges, level/time in the
+    // upper row, and the title in its own clear row above the picture.
+    this.chrome.fillStyle(0x061725, .94).fillRoundedRect(hx - hw / 2 - 2, 1, hw + 4, headerH, 10);
+    this.chrome.lineStyle(1, 0xc49457, .66).lineBetween(hx - hw / 2 + 51, headerH - 3, hx + hw / 2 - 51, headerH - 3);
     const back = this.backButton(), hint = this.hintButton();
-    this.iconCircle(back.x, back.y, mobile ? 18 : 21);
-    this.iconCircle(hint.x, hint.y, mobile ? 18 : 21);
+    this.iconCircle(back.x, back.y, mobile ? 19 : 21);
+    this.iconCircle(hint.x, hint.y, mobile ? 19 : 21);
     this.backArrow(back.x, back.y);
-    if (this.mode === 'complete') this.galleryIcon(hint.x, hint.y); else this.bulb(hint.x, hint.y);
-    if (compactVictory) {
-      this.headerTitle(hx, headerTop + 35, `УРОВЕНЬ 0${this.level.id}`, hw, true);
-    } else {
-      this.txt(hx - (mobile ? 76 : 112), mobile ? 17 : 21, `УРОВЕНЬ 0${this.level.id}`, mobile ? 10 : 11, '#f5d194', true);
-      if (this.mode === 'game') {
-        this.displayedTime = formatTime(this.elapsedMs);
-        this.timerText = this.txt(hx + (mobile ? 80 : 111), mobile ? 17 : 21,
-          this.displayedTime, mobile ? 11 : 14, '#ffe1a8', true);
-      }
-      if (this.mode === 'game' && this.results[this.level.id]) this.drawStars(hx, mobile ? 17 : 21, this.results[this.level.id].stars, mobile ? 4 : 5);
-      this.headerTitle(hx, mobile ? 39 : 42, this.level.title, hw, mobile);
+    this.bulb(hint.x, hint.y);
+    this.txt(hx - (mobile ? 66 : 120), mobile ? 15 : 19,
+      `УРОВЕНЬ 0${this.level.id}`, mobile ? 10 : 12, '#e7bf7e', true);
+    this.displayedTime = formatTime(this.elapsedMs);
+    this.timerText = this.txt(hx + (mobile ? 72 : 120), mobile ? 15 : 19,
+      this.displayedTime, mobile ? 11 : 13, '#ffe1a8', true);
+    this.fittedTitle(hx, mobile ? 39 : 48, this.level.title, hw - (mobile ? 108 : 125),
+      mobile ? 17 : 22, mobile ? 13 : 16);
+  }
+  private drawVictory(w: number, h: number) {
+    this.menuArt?.setVisible(false);
+    this.previewImage?.setVisible(false);
+    const layout = this.victoryScreenLayout();
+    const b = layout.picture;
+    const background = this.add.image(w / 2, h / 2, 'game-endpaper').setDepth(.5).setDisplaySize(w, h);
+    this.uiImages.push(background);
+    const back = this.backButton(), gallery = this.hintButton();
+    this.iconCircle(back.x, back.y, layout.portrait ? 17 : 20);
+    this.iconCircle(gallery.x, gallery.y, layout.portrait ? 17 : 20);
+    this.backArrow(back.x, back.y);
+    this.galleryIcon(gallery.x, gallery.y);
+    this.boardG.fillStyle(0x020916, .72).fillRoundedRect(b.x - 7, b.y - 7, b.width + 14, b.height + 14, 8);
+    this.completeImage?.setPosition(b.x + b.width / 2, b.y + b.height / 2).setDisplaySize(b.width, b.height);
+    this.chrome.lineStyle(2, 0xe2b976, .96).strokeRoundedRect(b.x - 4, b.y - 4, b.width + 8, b.height + 8, 6);
+    this.chrome.lineStyle(1, 0xffe7bb, .53).strokeRoundedRect(b.x - 7, b.y - 7, b.width + 14, b.height + 14, 9);
+    for (const x of [b.x - 5, b.x + b.width + 5]) for (const y of [b.y - 5, b.y + b.height + 5]) {
+      this.chrome.fillStyle(0xffdc91, .6).fillCircle(x, y, 2.4);
     }
-
-    if (!details) return;
-    const bestMs = this.results[this.level.id]?.bestMs ?? this.completedMs;
-    if (victoryLayout) this.drawVictoryMobile(victoryLayout);
-    else this.drawVictoryDesktop(bestMs);
+    const cx = layout.contentX;
+    const title = this.fittedTitle(cx, layout.titleY, 'Картина собрана!', layout.contentWidth,
+      layout.portrait ? 23 : 34, layout.portrait ? 18 : 27);
+    title.setColor('#ffe8b8');
+    this.fittedTitle(cx, layout.nameY, this.level.title, layout.contentWidth,
+      layout.portrait ? 15 : 23, layout.portrait ? 12 : 17).setColor('#f4d7a4');
+    this.ornamentRule(cx, (layout.nameY + layout.starsY) / 2, Math.min(layout.contentWidth - 34, 225));
+    for (let i = -1; i <= 1; i++) {
+      this.chrome.fillStyle(0xf5bd59, .12).fillCircle(cx + i * layout.starRadius * 2.6, layout.starsY, layout.starRadius * 1.65);
+    }
+    this.drawStars(cx, layout.starsY, starsForTime(this.level.pieces, this.completedMs), layout.starRadius);
+    this.txt(cx, layout.timeY, `Время ${formatTime(this.completedMs)}`,
+      layout.portrait ? 15 : 22, '#ffe3ad', true);
+    const next = this.nextButton();
+    this.button(next.centerX, next.centerY, next.width, next.height,
+      this.level.id === LEVELS.length ? 'В галерею' : 'Далее');
+    if (!layout.portrait) {
+      this.ornamentRule(cx, layout.button.y + layout.button.height + 37, Math.min(layout.contentWidth - 30, 220));
+    }
     if (!this.victoryUiLogged) {
       this.victoryUiLogged = true;
-      const next = this.nextButton();
       this.logVictory('ui-drawn', { stars: starsForTime(this.level.pieces, this.completedMs),
         buttonX: next.x, buttonY: next.y, buttonWidth: next.width, buttonHeight: next.height,
-        pictureBottom: b.y + b.height, resultsTop: victoryLayout?.results.y ?? this.victoryCard().y });
+        pictureBottom: b.y + b.height, resultsTop: layout.titleY });
     }
   }
-  private drawVictoryMobile(layout: ReturnType<typeof mobileVictoryLayout>) {
-    const { results, titleY, detailsY, compact } = layout;
-    const cx = this.viewWidth() / 2;
-    // A slim illuminated plaque sits below the picture; it never masks the art.
-    this.boardG.fillStyle(0x071b2b, .82).fillRoundedRect(results.x, results.y, results.width, results.height, 12);
-    this.boardG.lineStyle(1, 0xd9aa6b, .62).strokeRoundedRect(results.x, results.y, results.width, results.height, 12);
-    this.chrome.lineStyle(1, 0xffdc9d, .36).lineBetween(results.x + 20, results.y + 4, results.x + results.width - 20, results.y + 4);
-    this.txt(cx, titleY, 'Картина собрана!', compact ? 18 : 20, '#ffebc3', true);
-    this.txt(cx - 70, detailsY, `Время ${formatTime(this.completedMs)}`, compact ? 12 : 14, '#ffe1aa', true);
-    this.drawStars(cx + 78, detailsY, starsForTime(this.level.pieces, this.completedMs), compact ? 7 : 8);
-    const next = this.nextButton();
-    this.button(next.centerX, next.centerY, next.width, next.height, this.level.id === LEVELS.length ? 'В галерею' : 'Далее');
-  }
-  private drawVictoryDesktop(bestMs: number) {
-    const card = this.victoryCard(), cx = card.centerX;
-    this.boardG.fillStyle(0x102634, .8).fillRoundedRect(card.x, card.y, card.width, card.height, 16);
-    this.boardG.lineStyle(1.1, 0xcfa46d, .7).strokeRoundedRect(card.x, card.y, card.width, card.height, 16);
-    this.txt(cx, card.y + 35, 'Картина собрана!', 22, '#ffe8bb', true);
-    this.ornamentRule(cx, card.y + 61, card.width - 56);
-    this.drawStars(cx, card.y + 88, starsForTime(this.level.pieces, this.completedMs), 12);
-    this.txt(cx, card.y + 133, `Время ${formatTime(this.completedMs)}`, 20, '#ffe7b7', true);
-    this.txt(cx, card.y + 161, `Лучшее ${formatTime(bestMs)}`, 14, '#d7bc93');
-    const next = this.nextButton();
-    this.button(next.centerX, next.centerY, next.width, next.height, this.level.id === LEVELS.length ? 'В галерею' : 'Далее');
-  }
-  private headerTitle(x: number, y: number, value: string, headerWidth: number, mobile: boolean) {
-    const available = headerWidth - (mobile ? 112 : 140);
-    let size = mobile ? 14 : 20;
-    const title = this.txt(x, y, value, size, '#ffebc8', true);
-    while (title.width > available && size > (mobile ? 10 : 14)) title.setFontSize(--size);
-    if (title.width > available && mobile) {
-      title.setFontSize(10);
+  private fittedTitle(x: number, y: number, value: string, available: number, preferred: number, minimum: number) {
+    const title = this.txt(x, y, value, preferred, '#ffebc8', true);
+    let size = preferred;
+    while (title.width > available && size > minimum) title.setFontSize(--size);
+    if (title.width > available) {
       let shortened = value;
       while (title.width > available && shortened.length > 2) {
         shortened = `${shortened.slice(0, -2)}…`;
         title.setText(shortened);
       }
-    } else if (title.width > available) title.setFontSize(13).setWordWrapWidth(available, true).setMaxLines(2);
-    const padding = mobile ? 8 : 12;
-    this.chrome.fillStyle(0x071825, .96).fillRoundedRect(x - title.width / 2 - padding,
-      title.y - title.height / 2 - 2, title.width + padding * 2, title.height + 4, 6);
-    this.chrome.lineStyle(1, 0xbd925c, .65).strokeRoundedRect(x - title.width / 2 - padding,
-      title.y - title.height / 2 - 2, title.width + padding * 2, title.height + 4, 6);
+    }
+    return title;
   }
   private backArrow(x: number, y: number) {
     this.chrome.lineStyle(3, 0xffe4ac, 1).lineBetween(x + 9, y, x - 7, y);
@@ -754,11 +759,6 @@ const game = new Phaser.Game({
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: Math.round(window.innerWidth * RENDER_SCALE), height: Math.round(window.innerHeight * RENDER_SCALE) },
   input: { activePointers: 1, smoothFactor: 0 }, render: { pixelArt: false, roundPixels: false }, scene: [PuzzleScene],
 });
-
-const buildBadge = document.createElement('div');
-buildBadge.id = 'build-version';
-buildBadge.textContent = `Победа-2 · ${BUILD_ID}`;
-document.body.append(buildBadge);
 
 function resizeGame() {
   game.scale.setGameSize(Math.round(window.innerWidth * RENDER_SCALE), Math.round(window.innerHeight * RENDER_SCALE));
