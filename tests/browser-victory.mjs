@@ -128,20 +128,14 @@ async function runSize(browser, width, height) {
             baseline: c.y - c.getTextMetrics().descent };
         }) };
     });
-    const level = game.labels.find(l => l.text === 'УРОВЕНЬ');
-    const digits = game.labels.find(l => l.text === '01');
+    const level = game.labels.find(l => l.text === 'УРОВЕНЬ 01');
     const name = game.labels.find(l => l.text === 'Домик у озера');
     const timer = game.labels.find(l => /^\d\d:\d\d$/.test(l.text));
-    for (const label of [level, digits, name, timer]) assert.ok(label && inside(label.bounds, { x: 0, y: 0, width, height }));
-    assert.equal(level.fontFamily, digits.fontFamily);
-    assert.ok(digits.inkHeight >= level.inkHeight && digits.inkHeight <= level.inkHeight + 3,
-      `${width}: digit ink ${digits.inkHeight}, label ink ${level.inkHeight}`);
-    assert.ok(Math.abs(level.baseline - digits.baseline) < .6, `${width}: mismatched baselines`);
-    assert.ok(digits.bounds.x >= level.bounds.x + level.bounds.width);
-    assert.ok(!overlaps(digits.bounds, timer.bounds));
+    for (const label of [level, name, timer]) assert.ok(label && inside(label.bounds, { x: 0, y: 0, width, height }));
+    assert.match(level.fontFamily, /^Georgia/);
+    assert.ok(level.inkHeight > 0);
     assert.ok(!overlaps(level.bounds, timer.bounds));
     assert.ok(!overlaps(name.bounds, level.bounds));
-    assert.ok(!overlaps(name.bounds, digits.bounds));
     assert.ok(!overlaps(name.bounds, timer.bounds));
     const gameFrame = strokeFrameRect(game.board, width, 2, 1.5);
     assert.ok(gameFrame.x >= 1.5 && gameFrame.x + gameFrame.width <= width - 1.5);
