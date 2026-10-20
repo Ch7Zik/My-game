@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import Phaser from 'phaser';
+import { galleryGrid } from './galleryLayout';
 import { createRegions, inspectRegions, qualityProblems, type PieceRegion, type Point } from './geometry';
 import { canAdvance, canDrag, isComplete, shouldSnap, wasDragged } from './puzzleRules';
 import { gameLayout, looseScale, startPosition, SLOT_ORDER, type Rect } from './layout';
@@ -9,7 +10,6 @@ import { PuzzleAudio } from './audio';
 import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, saveProgress, selectLevel, type Progress } from './progress';
 import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay, starsForTime, type Results } from './results';
 import { victoryScreenLayout } from './victoryLayout';
-import { galleryGrid } from './galleryLayout';
 import './style.css';
 
 type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion; placed: boolean; home: Point; slot: number; hit: Uint8Array; texW: number; texH: number; baseW: number; baseH: number };
