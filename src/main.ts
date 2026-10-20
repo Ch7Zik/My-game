@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 import Phaser from 'phaser';
 import { galleryGrid } from './galleryLayout';
+import { levelGrid } from './levelGrid';
 import { createRegions, inspectRegions, qualityProblems, type PieceRegion, type Point } from './geometry';
 import { canAdvance, canDrag, isComplete, shouldSnap, wasDragged } from './puzzleRules';
 import { gameLayout, looseScale, startPosition, SLOT_ORDER, type Rect } from './layout';
@@ -41,7 +42,9 @@ class PuzzleScene extends Phaser.Scene {
   private mode: 'menu' | 'levels' | 'gallery' | 'view' | 'game' | 'complete' = 'menu';
   private viewedLevel = 1;
   private galleryScrollRow = 0;
+  private levelScrollRow = 0;
   private galleryPointerStart: { x: number; y: number } | null = null;
+  private levelPointerStart: { x: number; y: number } | null = null;
   private menuPressed = false;
   private tutorialDone = false;
   private dragging: Piece | null = null;
@@ -89,6 +92,7 @@ class PuzzleScene extends Phaser.Scene {
     this.input.on('pointerupoutside', (p: Phaser.Input.Pointer) => this.pointerUp(p));
     this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _over: unknown, _dx: number, dy: number) => {
       if (this.mode === 'gallery' && Math.abs(dy) > 1) this.scrollGallery(dy > 0 ? 1 : -1);
+      if (this.mode === 'levels' && Math.abs(dy) > 1) this.scrollLevels(dy > 0 ? 1 : -1);
     });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.hiddenAt = performance.now();
@@ -211,8 +215,7 @@ class PuzzleScene extends Phaser.Scene {
     }
     if (this.mode === 'levels') {
       if (this.backButton().contains(x, y)) { this.mode = 'menu'; this.draw(); return; }
-      const id = this.cardAt(x, y);
-      if (id && this.mode === 'levels' && isUnlocked(this.progress, id)) { this.startGame(id); }
+      this.levelPointerStart = { x, y };
       return;
     }
     if (this.mode === 'view') { if (this.backButton().contains(x, y) || this.galleryCloseButton().contains(x, y)) { this.mode = 'gallery'; this.draw(); } return; }
@@ -245,6 +248,20 @@ class PuzzleScene extends Phaser.Scene {
     p.sprite.y = Phaser.Math.Clamp(pointer.y / RENDER_SCALE + this.pointerOffset.y, this.board.y + p.sprite.displayHeight / 2, this.board.y + this.board.height - p.sprite.displayHeight / 2);
   }
   private pointerUp(_pointer: Phaser.Input.Pointer) {
+    if (this.mode === 'levels' && this.levelPointerStart) {
+      const start = this.levelPointerStart;
+      this.levelPointerStart = null;
+      const x = _pointer.x / RENDER_SCALE, y = _pointer.y / RENDER_SCALE;
+      const dy = y - start.y;
+      if (Math.abs(dy) > 24) {
+        const step = levelGrid(this.viewWidth(), this.viewHeight(), LEVELS.length).rowStep;
+        this.scrollLevels(-Math.sign(dy) * Math.max(1, Math.round(Math.abs(dy) / step)));
+      } else if (Math.abs(x - start.x) < 24) {
+        const id = this.cardAt(x, y);
+        if (id && isUnlocked(this.progress, id)) this.startGame(id);
+      }
+      return;
+    }
     if (this.mode === 'gallery' && this.galleryPointerStart) {
       const start = this.galleryPointerStart;
       this.galleryPointerStart = null;
@@ -524,19 +541,15 @@ class PuzzleScene extends Phaser.Scene {
     const w = this.viewWidth(), h = this.viewHeight();
     if (this.mode === 'gallery') return galleryGrid(w, h, LEVELS.length, this.galleryScrollRow).cards
       .map(r => new Phaser.Geom.Rectangle(r.x, r.y, r.width, r.height));
-    if (w >= 900) {
-      const gap = 16, group = Math.min(w - 120, 1560), width = (group - gap * 4) / 5;
-      const height = Math.min(560, Math.max(350, h - 250)), top = Math.max(156, (h - height) / 2);
-      return LEVELS.map((_, i) => new Phaser.Geom.Rectangle((w - group) / 2 + i * (width + gap), top, width, height));
-    }
-    const top = 76, gap = h < 700 ? 7 : 9;
-    const width = (w - 32 - gap) / 2;
-    const height = Math.min(220, (h - top - 15 - gap * 2) / 3);
-    return LEVELS.map((_, i) => new Phaser.Geom.Rectangle(12 + (i % 2) * (width + gap), top + Math.floor(i / 2) * (height + gap), width, height));
+    return levelGrid(w, h, LEVELS.length, this.levelScrollRow).cards
+      .map(r => new Phaser.Geom.Rectangle(r.x, r.y, r.width, r.height));
   }
   private cardAt(x: number, y: number): number | null {
     if (this.mode === 'gallery') {
       const grid = galleryGrid(this.viewWidth(), this.viewHeight(), LEVELS.length, this.galleryScrollRow);
+      if (y < grid.top || y > grid.bottom) return null;
+    } else if (this.mode === 'levels') {
+      const grid = levelGrid(this.viewWidth(), this.viewHeight(), LEVELS.length, this.levelScrollRow);
       if (y < grid.top || y > grid.bottom) return null;
     }
     const index = this.cardRects().findIndex(rect => rect.contains(x, y));
@@ -548,6 +561,12 @@ class PuzzleScene extends Phaser.Scene {
     this.galleryScrollRow = grid.scrollRow;
     this.draw();
   }
+  private scrollLevels(delta: number) {
+    const grid = levelGrid(this.viewWidth(), this.viewHeight(), LEVELS.length, this.levelScrollRow + delta);
+    if (grid.scrollRow === this.levelScrollRow) return;
+    this.levelScrollRow = grid.scrollRow;
+    this.draw();
+  }
   private drawSectionHeader(w: number, title: string) {
     const desktop = w >= 900;
     const back = this.backButton(); this.iconCircle(back.x, back.y); this.backArrow(back.x, back.y);
@@ -556,7 +575,7 @@ class PuzzleScene extends Phaser.Scene {
       this.txt(w / 2, 110, title, 35, '#ffe9bd', true);
       this.ornamentRule(w / 2, 148, 340);
     } else {
-      this.txt(w / 2 + 10, 39, title, Math.min(22, w * .056), '#ffe9bd', true);
+      this.txt(w / 2, 39, title, Math.min(22, w * .056), '#ffe9bd', true);
       this.chrome.lineStyle(1, 0xcf9f62, .58).lineBetween(12, 68, w - 12, 68);
     }
   }
@@ -570,9 +589,12 @@ class PuzzleScene extends Phaser.Scene {
     const desktop = w >= 900;
     if (this.mode === 'gallery') { this.drawGalleryGrid(w); return; }
     this.drawSectionHeader(w, 'Выбор уровня');
+    const grid = levelGrid(w, this.viewHeight(), LEVELS.length, this.levelScrollRow);
+    this.levelScrollRow = grid.scrollRow;
     const rects = this.cardRects();
     for (let index = 0; index < LEVELS.length; index++) {
       const level = LEVELS[index], r = rects[index];
+      if (r.y < grid.top - .5 || r.bottom > grid.bottom + .5) continue;
       const open = isUnlocked(this.progress, level.id);
       const done = this.progress.completed.includes(level.id);
       this.boardG.fillStyle(0x030b13, .82).fillRoundedRect(r.x + 2, r.y + 4, r.width, r.height, 10);
@@ -590,13 +612,15 @@ class PuzzleScene extends Phaser.Scene {
       }
       {
         this.chrome.fillStyle(0x06121d, .72).fillRoundedRect(imageX + 5, imageY + 5, desktop ? 41 : 32, desktop ? 27 : 22, 6);
-        this.txt(imageX + (desktop ? 25 : 21), imageY + (desktop ? 18 : 16), `0${level.id}`, desktop ? 14 : 11, '#ffdf9e', true);
+        this.txt(imageX + (desktop ? 25 : 21), imageY + (desktop ? 18 : 16), String(level.id).padStart(2, '0'), desktop ? 14 : 11, '#ffdf9e', true);
         if (!desktop && !done) {
           const status = open ? 'ДОСТУПЕН' : 'ЗАКРЫТ';
           this.chrome.fillStyle(0x06121d, .75).fillRoundedRect(r.right - 69, imageY + 5, 63, 22, 5);
           this.txt(r.right - 37, imageY + 16, status, 8, open ? '#ffe1a9' : '#a6b2b6', true);
         }
-        this.txt(r.centerX, r.bottom - (desktop ? 57 : 22), level.title, desktop ? 18 : 12, open ? '#ffe8bc' : '#aab3ba', true);
+        this.fittedTitle(r.centerX, r.bottom - (desktop ? 57 : 22), level.title,
+          r.width - 12, desktop ? 18 : 12, desktop ? 13 : 10)
+          .setColor(open ? '#ffe8bc' : '#aab3ba');
         if (desktop) {
           this.drawStars(r.centerX, r.bottom - 28, starsForDisplay(this.progress.completed, this.results, level.id), 8, true);
           if (!done) this.txt(r.centerX, r.bottom - 9, open ? 'ДОСТУПЕН' : 'ЗАКРЫТ', 10, open ? '#cda66d' : '#89959b', true);
@@ -604,6 +628,14 @@ class PuzzleScene extends Phaser.Scene {
           this.drawStars(r.centerX, r.bottom - 8, starsForDisplay(this.progress.completed, this.results, level.id), 5.5, true);
         }
       }
+    }
+    if (grid.maxScrollRow > 0) {
+      const trackH = grid.bottom - grid.top;
+      const thumbH = Math.max(32, trackH * grid.visibleRows / (grid.maxScrollRow + grid.visibleRows));
+      const x = desktop ? Math.min(w - 9, (w + Math.min(w - 120, 1560)) / 2 + 10) : w - 5;
+      const y = grid.top + (trackH - thumbH) * grid.scrollRow / grid.maxScrollRow;
+      this.chrome.fillStyle(0xe3b978, .2).fillRoundedRect(x - 2, grid.top, 3, trackH, 2);
+      this.chrome.fillStyle(0xf4ce8c, .82).fillRoundedRect(x - 2, y, 3, thumbH, 2);
     }
   }
   private drawGalleryGrid(w: number) {
@@ -708,11 +740,10 @@ class PuzzleScene extends Phaser.Scene {
     this.iconCircle(hint.x, hint.y, mobile ? 19 : 21);
     this.backArrow(back.x, back.y);
     this.bulb(hint.x, hint.y);
-    this.drawLevelTag(hx - (mobile ? 66 : 120), mobile ? 20 : 26, mobile);
+    this.drawLevelTag(hx - (mobile ? 66 : 120), mobile ? 17 : 22, mobile);
     this.displayedTime = formatTime(this.elapsedMs);
-    this.timerText = this.txt(hx + (mobile ? 72 : 120), 0,
-      this.displayedTime, mobile ? 11 : 13, '#ffe1a8', true).setOrigin(.5, 1);
-    this.timerText.y = (mobile ? 20 : 26) + this.timerText.getTextMetrics().descent;
+    this.timerText = this.txt(hx + (mobile ? 72 : 120), mobile ? 17 : 22,
+      this.displayedTime, mobile ? 11 : 13, '#ffe1a8', true);
     this.fittedTitle(hx, mobile ? 39 : 48, this.level.title, hw - (mobile ? 108 : 125),
       mobile ? 17 : 22, mobile ? 13 : 16);
   }
@@ -771,25 +802,11 @@ class PuzzleScene extends Phaser.Scene {
         starY: this.victoryStarY, glowRadius: this.victoryGlowRadius });
     }
   }
-  private drawLevelTag(x: number, baseline: number, mobile: boolean) {
-    const size = mobile ? 10 : 12;
-    const number = String(this.level.id).padStart(2, '0');
-    const context = document.createElement('canvas').getContext('2d');
-    const inkHeight = (value: string, fontSize: number) => {
-      if (!context) return fontSize * .7;
-      context.font = `bold ${fontSize}px Georgia`;
-      const metrics = context.measureText(value);
-      return metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent || fontSize * .7;
-    };
-    const targetHeight = inkHeight('УРОВЕНЬ', size) + .5;
-    let numberSize = size;
-    while (inkHeight(number, numberSize) < targetHeight && numberSize < size + 4) numberSize++;
-    const label = this.txt(0, 0, 'УРОВЕНЬ', size, '#e7bf7e', true).setOrigin(0, 1);
-    const digits = this.txt(0, 0, number, numberSize, '#e7bf7e', true).setOrigin(0, 1);
-    const gap = mobile ? 3 : 4;
-    const left = x - (label.width + gap + digits.width) / 2;
-    label.setPosition(left, baseline + label.getTextMetrics().descent);
-    digits.setPosition(left + label.width + gap, baseline + digits.getTextMetrics().descent);
+  private drawLevelTag(x: number, y: number, mobile: boolean) {
+    // One text object gives the Cyrillic label and lining numerals identical
+    // font metrics, baseline, shadow and canvas scaling on Safari and Chromium.
+    return this.txt(x, y, `УРОВЕНЬ ${String(this.level.id).padStart(2, '0')}`,
+      mobile ? 11 : 13, '#e7bf7e', true);
   }
   private fittedTitle(x: number, y: number, value: string, available: number, preferred: number, minimum: number) {
     const title = this.txt(x, y, value, preferred, '#ffebc8', true);
