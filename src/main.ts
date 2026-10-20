@@ -10,7 +10,7 @@ import { assetUrl } from './assetUrl';
 import { PuzzleAudio } from './audio';
 import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, saveProgress, selectLevel, type Progress } from './progress';
 import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay, starsForTime, type Results } from './results';
-import { fitVictoryStars, victoryScreenLayout } from './victoryLayout';
+import { fitVictoryStars, victoryAwardProgress, victoryScreenLayout } from './victoryLayout';
 import { strokeFrameRect } from './chromeLayout';
 import levelFontUrl from './assets/NotoSerif-Bold.ttf?url';
 import './style.css';
@@ -19,6 +19,7 @@ type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion
 const RENDER_SCALE = Math.min(window.devicePixelRatio || 1, window.innerWidth >= 900 ? 1.5 : window.innerWidth >= 700 ? 1.75 : 2);
 const BUILD_ID = (import.meta.env.VITE_BUILD_ID || 'local').slice(0, 8);
 const VICTORY_LOG_KEY = 'mystic-puzzles-victory-log-v1';
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 // Bundle the level label's font so Safari and desktop render the same lining
 // numerals and Cyrillic capitals. Georgia has different glyph proportions on iOS.
 const levelFontReady = typeof FontFace === 'undefined' ? Promise.resolve() :
@@ -42,6 +43,7 @@ class PuzzleScene extends Phaser.Scene {
   private victoryUiLogged = false;
   private victoryStarY = 0;
   private victoryGlowRadius = 0;
+  private victoryAwardStartedAt = 0;
   private timerText: Phaser.GameObjects.Text | null = null;
   private displayedTime = '';
   private pieces: Piece[] = [];
@@ -332,12 +334,14 @@ class PuzzleScene extends Phaser.Scene {
     this.logVictory('last-piece-settled');
     this.mode = 'complete';
     this.victoryUiLogged = false;
+    this.victoryAwardStartedAt = performance.now();
     window.setTimeout(() => { if (this.mode === 'complete') this.audio.play('complete'); }, 300);
     const picture = this.victoryScreenLayout().picture;
     this.completeImage = this.add.image(picture.x + picture.width / 2, picture.y + picture.height / 2, 'whole-picture').setDepth(60).setDisplaySize(picture.width, picture.height);
     // The assembled board lingers and fades above the new composition. Results
     // already exist below it; no tween or delayed callback controls their state.
-    this.revealImage = this.add.image(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2, 'whole-picture')
+    if (!reducedMotion.matches) this.revealImage = this.add.image(
+      this.board.x + this.board.width / 2, this.board.y + this.board.height / 2, 'whole-picture')
       .setDepth(61).setDisplaySize(this.board.width, this.board.height);
     this.revealStartedAt = performance.now();
     this.pieces.forEach(piece => piece.sprite.setVisible(false));
@@ -432,8 +436,8 @@ class PuzzleScene extends Phaser.Scene {
     }
     if (this.revealImage) {
       const elapsed = performance.now() - this.revealStartedAt;
-      this.revealImage.setAlpha(Math.max(0, Math.min(1, (680 - elapsed) / 420)));
-      if (elapsed >= 680) { this.revealImage.destroy(); this.revealImage = null; }
+      if (reducedMotion.matches || elapsed >= 680) { this.revealImage.destroy(); this.revealImage = null; }
+      else this.revealImage.setAlpha(Math.max(0, Math.min(1, (680 - elapsed) / 420)));
     }
     this.fx.clear();
     if (this.mode === 'complete' && this.revealImage) {
@@ -445,6 +449,7 @@ class PuzzleScene extends Phaser.Scene {
       this.fx.lineStyle(2, 0xffe1a1, glow * .65).strokeRoundedRect(
         this.board.x - 1, this.board.y - 1, this.board.width + 2, this.board.height + 2, 6);
     }
+    if (this.mode === 'complete') this.drawVictoryAward();
     if (this.dragging) {
       const p = this.dragging, distance = Math.hypot(p.sprite.x - p.home.x, p.sprite.y - p.home.y);
       const range = Math.max(70, this.board.width * .27);
@@ -789,10 +794,9 @@ class PuzzleScene extends Phaser.Scene {
     this.victoryStarY = stars.y;
     this.victoryGlowRadius = stars.glowRadius;
     if (!layout.portrait) this.ornamentRule(cx, (name.y + stars.y) / 2, Math.min(layout.contentWidth - 34, 225));
-    for (let i = -1; i <= 1; i++) {
-      this.chrome.fillStyle(0xf5bd59, .12).fillCircle(cx + i * layout.starRadius * 2.6, stars.y, stars.glowRadius);
-    }
-    this.drawStars(cx, stars.y, starsForTime(this.level.pieces, this.completedMs), layout.starRadius);
+    // Muted outlines reserve all three positions. Earned gold and its glow are
+    // rendered by update(), without creating objects or delaying the results.
+    this.drawStars(cx, stars.y, 0, layout.starRadius, true);
     this.txt(cx, layout.timeY, `Время ${formatTime(this.completedMs)}`,
       layout.portrait ? 15 : 22, '#ffe3ad', true);
     const next = this.nextButton();
@@ -807,6 +811,26 @@ class PuzzleScene extends Phaser.Scene {
         buttonX: next.x, buttonY: next.y, buttonWidth: next.width, buttonHeight: next.height,
         pictureBottom: b.y + b.height, resultsTop: layout.titleY,
         starY: this.victoryStarY, glowRadius: this.victoryGlowRadius });
+    }
+  }
+  private drawVictoryAward() {
+    const layout = this.victoryScreenLayout();
+    const earned = starsForTime(this.level.pieces, this.completedMs);
+    const elapsed = this.victoryAwardStartedAt ? performance.now() - this.victoryAwardStartedAt : Infinity;
+    for (let star = 0; star < earned; star++) {
+      const progress = victoryAwardProgress(elapsed, star, reducedMotion.matches);
+      if (progress <= 0) continue;
+      const x = layout.contentX + (star - 1) * layout.starRadius * 2.6;
+      const y = this.victoryStarY;
+      const radius = layout.starRadius * (.82 + .18 * progress);
+      const wave = progress < 1 ? Math.sin(Math.PI * progress) : 0;
+      this.fx.fillStyle(0xffd578, .035 * progress + .11 * wave)
+        .fillCircle(x, y, this.victoryGlowRadius);
+      const points = Array.from({ length: 10 }, (_, i) => new Phaser.Geom.Point(
+        x + Math.cos(-Math.PI / 2 + i * Math.PI / 5) * (i % 2 ? radius * .45 : radius),
+        y + Math.sin(-Math.PI / 2 + i * Math.PI / 5) * (i % 2 ? radius * .45 : radius)));
+      this.fx.fillStyle(0xffd578, progress).fillPoints(points, true);
+      this.fx.lineStyle(1.3, 0xffe4a4, progress).strokePoints(points, true);
     }
   }
   private drawLevelTag(x: number, y: number, mobile: boolean) {

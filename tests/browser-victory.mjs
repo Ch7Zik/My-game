@@ -8,7 +8,9 @@ const port = 4177;
 const base = `http://127.0.0.1:${port}/`;
 const screenshots = process.env.VICTORY_SCREENSHOT_DIR;
 const details = process.env.VICTORY_DETAIL_DIR;
-const allSizes = [[360, 640], [390, 844], [430, 932], [1920, 1080]];
+const task19CaptureDir = process.env.TASK19_CAPTURE_DIR;
+const task19VariantDir = process.env.TASK19_VARIANT_DIR;
+const allSizes = [[360, 640], [375, 667], [390, 844], [393, 852], [430, 932], [1920, 1080]];
 const sizes = process.env.VICTORY_SIZES
   ? allSizes.filter(([w, h]) => process.env.VICTORY_SIZES.split(',').includes(`${w}x${h}`)) : allSizes;
 assert.ok(sizes.length, 'No matching VICTORY_SIZES');
@@ -48,6 +50,22 @@ async function visibleGoldPixels(page, screenshot, areas) {
     }
     return counts;
   }, { encoded: screenshot.toString('base64'), areas });
+}
+
+async function filledAwardPixels(page, screenshot, layout, starY) {
+  return page.evaluate(async ({ encoded, layout, starY }) => {
+    const image = new Image(); image.src = `data:image/png;base64,${encoded}`; await image.decode();
+    const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
+    const context = canvas.getContext('2d', { willReadFrequently: true }); context.drawImage(image, 0, 0);
+    return [-1, 0, 1].map(index => {
+      const x = Math.round(layout.contentX + index * layout.starRadius * 2.6);
+      const pixels = context.getImageData(x - 4, Math.round(starY) - 4, 9, 9).data;
+      let filled = 0;
+      for (let at = 0; at < pixels.length; at += 4)
+        if (pixels[at] > 225 && pixels[at + 1] > 170 && pixels[at + 2] > 75 && pixels[at] > pixels[at + 2] + 70) filled++;
+      return filled;
+    });
+  }, { encoded: screenshot.toString('base64'), layout, starY });
 }
 
 async function waitForServer() {
@@ -147,6 +165,10 @@ async function runSize(browser, width, height) {
       mkdirSync(screenshots, { recursive: true });
       await page.screenshot({ path: `${screenshots}/game-${width}x${height}.jpg`, type: 'jpeg', quality: 88, scale: 'css' });
     }
+    if (task19CaptureDir) {
+      mkdirSync(task19CaptureDir, { recursive: true });
+      await page.screenshot({ path: `${task19CaptureDir}/game-${width}x${height}.png`, scale: 'css' });
+    }
     if (details && width === 390) {
       mkdirSync(details, { recursive: true });
       await page.screenshot({ path: `${details}/game-header-390x844.png`, clip: { x: 0, y: 0, width, height: 75 }, scale: 'device' });
@@ -175,6 +197,22 @@ async function runSize(browser, width, height) {
       if (id !== ids.at(-1)) await page.waitForTimeout(310);
     }
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'complete');
+    if (task19CaptureDir) {
+      for (const [phase, elapsed] of [['early', 80], ['during', 610], ['final', 1250]]) {
+        await page.evaluate(offset => {
+          const scene = window.__mysticGame.scene.getScene('puzzle');
+          const frameTime = performance.now();
+          // Hold one real rendered frame while the screenshot is encoded; slow
+          // devices must not advance from the middle beat to the final beat.
+          Object.defineProperty(performance, 'now', { configurable: true, value: () => frameTime });
+          scene.revealStartedAt = frameTime - offset;
+          if ('victoryAwardStartedAt' in scene) scene.victoryAwardStartedAt = frameTime - offset;
+        }, elapsed);
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        await page.screenshot({ path: `${task19CaptureDir}/victory-${phase}-${width}x${height}.png`, scale: 'css' });
+        await page.evaluate(() => { delete performance.now; });
+      }
+    }
     const result = await page.evaluate(() => {
       const s = window.__mysticGame.scene.getScene('puzzle');
       return { mode: s.mode, completedMs: s.completedMs, stars: s.results[1]?.stars,
@@ -251,6 +289,34 @@ async function runSize(browser, width, height) {
       await page.screenshot({ path: `${details}/victory-stars-390x844.png`, clip: { x: 70, y: 75, width: 250, height: 78 }, scale: 'device' });
       await page.screenshot({ path: `${details}/victory-frame-390x844.png`, clip: { x: 0, y: 124, width, height: 60 }, scale: 'device' });
     }
+    if (width === 390 && task19VariantDir) {
+      mkdirSync(task19VariantDir, { recursive: true });
+      for (const [earned, elapsedMs] of [[1, 200000], [2, 120000], [3, result.completedMs]]) {
+        await page.evaluate(ms => { const scene = window.__mysticGame.scene.getScene('puzzle');
+          scene.completedMs = ms; scene.victoryAwardStartedAt = performance.now() - 1500; scene.draw(); }, elapsedMs);
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const frame = await page.screenshot({ path: `${task19VariantDir}/stars-${earned}.png`, scale: 'css' });
+        const counts = await filledAwardPixels(page, frame, result.layout, result.starY);
+        for (let index = 0; index < 3; index++)
+          assert.ok(index < earned ? counts[index] > 10 : counts[index] < 6,
+            `${earned} earned stars: visible fill ${counts}`);
+      }
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      const redraw = await page.evaluate(ms => { const scene = window.__mysticGame.scene.getScene('puzzle');
+        scene.completedMs = ms; scene.victoryAwardStartedAt = performance.now(); scene.draw();
+        const count = scene.children.list.length; scene.draw();
+        return { before: count, after: scene.children.list.length, startedAt: scene.victoryAwardStartedAt,
+          reduced: matchMedia('(prefers-reduced-motion: reduce)').matches }; }, result.completedMs);
+      assert.equal(redraw.before, redraw.after);
+      assert.ok(redraw.startedAt > 0 && redraw.reduced);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const reducedFrame = await page.screenshot({ path: `${task19VariantDir}/stars-reduced-motion.png`, scale: 'css' });
+      const reducedCounts = await filledAwardPixels(page, reducedFrame, result.layout, result.starY);
+      assert.ok(reducedCounts.every(count => count > 10), `reduced motion: visible fill ${reducedCounts}`);
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      await page.evaluate(ms => { const scene = window.__mysticGame.scene.getScene('puzzle');
+        scene.completedMs = ms; scene.victoryAwardStartedAt = performance.now() - 1500; scene.draw(); }, result.completedMs);
+    }
     if (width === 390) {
       await page.evaluate(() => { document.documentElement.style.setProperty('--safe-top', '47px');
         document.documentElement.style.setProperty('--safe-bottom', '34px'); });
@@ -264,6 +330,17 @@ async function runSize(browser, width, height) {
       assert.ok(resized.texts.includes('Картина собрана!') && resized.texts.includes('Далее'));
       await page.evaluate(() => { document.documentElement.style.removeProperty('--safe-top');
         document.documentElement.style.removeProperty('--safe-bottom'); });
+      await page.setViewportSize({ width, height });
+      await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').viewWidth() === 390);
+      await page.setViewportSize({ width: 844, height: 390 });
+      await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').viewWidth() === 844);
+      const landscape = await page.evaluate(() => { const scene = window.__mysticGame.scene.getScene('puzzle');
+        return { picture: scene.completeImage?.getBounds(), button: scene.nextButton(),
+          scrollWidth: document.documentElement.scrollWidth }; });
+      assert.ok(inside(landscape.picture, { x: 0, y: 0, width: 844, height: 390 }));
+      assert.ok(inside(landscape.button, { x: 0, y: 0, width: 844, height: 390 }));
+      assert.ok(!overlaps(landscape.picture, landscape.button));
+      assert.equal(landscape.scrollWidth, 844);
       await page.setViewportSize({ width, height });
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').viewWidth() === 390);
       const other = await context.newPage(); await other.bringToFront(); await page.waitForTimeout(100);
@@ -296,6 +373,7 @@ async function runSize(browser, width, height) {
         return { x: b.centerX, y: b.centerY }; });
       await page.touchscreen.tap(firstCard.x, firstCard.y);
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 4);
+      await page.emulateMedia({ reducedMotion: 'reduce' });
       for (const id of ids) {
         const { start, target } = await dragCoordinates(page, id);
         await drag(page, cdp, start, target);
@@ -303,12 +381,25 @@ async function runSize(browser, width, height) {
         if (id !== ids.at(-1)) await page.waitForTimeout(310);
       }
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'complete');
+      const staticVictory = await page.evaluate(() => { const scene = window.__mysticGame.scene.getScene('puzzle');
+        return { reveal: scene.revealImage, button: scene.nextButton(),
+          labels: scene.children.list.filter(c => c.getData('uiText')).map(c => c.text) }; });
+      assert.equal(staticVictory.reveal, null);
+      assert.ok(staticVictory.labels.includes('Картина собрана!') && staticVictory.labels.includes('Далее'));
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      if (task19VariantDir) {
+        const staticFrame = await page.screenshot({ path: `${task19VariantDir}/real-completion-reduced-motion.png`, scale: 'css' });
+        const staticCounts = await filledAwardPixels(page, staticFrame, result.layout,
+          await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').victoryStarY));
+        assert.ok(staticCounts.every(count => count > 10), `real reduced-motion completion: ${staticCounts}`);
+      }
       const replay = await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').results[1]);
       assert.ok(replay.bestMs <= saved.result.bestMs && replay.stars >= saved.result.stars);
       const victoryGallery = await page.evaluate(() => { const b = window.__mysticGame.scene.getScene('puzzle').hintButton();
         return { x: b.x, y: b.y }; });
       await page.touchscreen.tap(victoryGallery.x, victoryGallery.y);
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'gallery');
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
     }
     assert.deepEqual(errors, []);
     return { size: `${width}x${height}`, elapsedMs: Math.round(result.completedMs), stars: result.stars,
