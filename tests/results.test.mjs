@@ -5,7 +5,7 @@ import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay,
 import { gameLayout } from '../src/layout.ts';
 
 test('configurable star times respect existing piece counts and have no failure state', () => {
-  for (const pieces of [4, 6, 8]) {
+  for (const pieces of [4, 6, 8, 12]) {
     const { three, two } = STAR_THRESHOLDS_SECONDS[pieces];
     assert.ok(two > three);
     assert.equal(starsForTime(pieces, three * 1000), 3);
