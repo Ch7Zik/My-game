@@ -771,15 +771,20 @@ class PuzzleScene extends Phaser.Scene {
     this.iconCircle(gallery.x, gallery.y, layout.portrait ? 17 : 20);
     this.backArrow(back.x, back.y);
     this.galleryIcon(gallery.x, gallery.y);
+    // Keep the finished art at its established size. All gilding lives in the
+    // existing margin outside it, including the soft halo behind the frame.
     this.boardG.fillStyle(0x020916, .72).fillRoundedRect(b.x - 7, b.y - 7, b.width + 14, b.height + 14, 8);
+    this.boardG.lineStyle(12, 0xffbe60, .055).strokeRoundedRect(b.x - 5, b.y - 5, b.width + 10, b.height + 10, 10);
     this.completeImage?.setPosition(b.x + b.width / 2, b.y + b.height / 2).setDisplaySize(b.width, b.height);
     const inner = strokeFrameRect(b, w, 4, 2.5);
     const outer = strokeFrameRect(b, w, 7, 2.5);
-    this.chrome.lineStyle(2, 0xe2b976, .96).strokeRoundedRect(inner.x, inner.y, inner.width, inner.height, 6);
-    this.chrome.lineStyle(1, 0xffe7bb, .53).strokeRoundedRect(outer.x, outer.y, outer.width, outer.height, 9);
-    for (const x of [b.x - 5, b.x + b.width + 5]) for (const y of [b.y - 5, b.y + b.height + 5]) {
-      this.chrome.fillStyle(0xffdc91, .6).fillCircle(x, y, 2.4);
-    }
+    this.chrome.lineStyle(2, 0xd19a4b, .94).strokeRoundedRect(outer.x, outer.y, outer.width, outer.height, 8);
+    this.chrome.lineStyle(1, 0xffe8b5, .98).strokeRoundedRect(inner.x, inner.y, inner.width, inner.height, 5);
+    this.chrome.lineStyle(.7, 0x9a602f, .8).strokeRoundedRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2, 3);
+    const cornerSize = layout.portrait ? 27 : 38;
+    for (const [x, sx] of [[b.x - 5, 1], [b.x + b.width + 5, -1]] as const)
+      for (const [y, sy] of [[b.y - 5, 1], [b.y + b.height + 5, -1]] as const)
+        this.victoryCorner(x, y, sx, sy, cornerSize);
     const cx = layout.contentX;
     const title = this.fittedTitle(cx, layout.titleY, 'Картина собрана!', layout.contentWidth,
       layout.portrait ? 23 : 34, layout.portrait ? 18 : 27);
@@ -791,15 +796,20 @@ class PuzzleScene extends Phaser.Scene {
       : { headingShift: 0, glowRadius: layout.starRadius * 1.12, y: layout.starsY };
     title.y -= stars.headingShift;
     name.y -= stars.headingShift;
+    if (layout.portrait && h >= 720) {
+      const ruleY = title.getBounds().top - 7;
+      this.ornamentRule(cx, ruleY, Math.min(layout.contentWidth - 100, 145));
+    }
     this.victoryStarY = stars.y;
     this.victoryGlowRadius = stars.glowRadius;
     if (!layout.portrait) this.ornamentRule(cx, (name.y + stars.y) / 2, Math.min(layout.contentWidth - 34, 225));
     // Muted outlines reserve all three positions. Earned gold and its glow are
     // rendered by update(), without creating objects or delaying the results.
     this.drawStars(cx, stars.y, 0, layout.starRadius, true);
-    this.txt(cx, layout.timeY, `Время ${formatTime(this.completedMs)}`,
-      layout.portrait ? 15 : 22, '#ffe3ad', true);
+    this.drawVictoryTime(cx, layout.timeY, layout.portrait, formatTime(this.completedMs));
     const next = this.nextButton();
+    this.boardG.lineStyle(8, 0xffba50, .07).strokeRoundedRect(
+      next.x - 5, next.y - 5, next.width + 10, next.height + 10, next.height / 2);
     this.button(next.centerX, next.centerY, next.width, next.height,
       this.level.id === LEVELS.length ? 'В галерею' : 'Далее');
     if (!layout.portrait) {
@@ -813,6 +823,41 @@ class PuzzleScene extends Phaser.Scene {
         starY: this.victoryStarY, glowRadius: this.victoryGlowRadius });
     }
   }
+  private victoryCorner(x: number, y: number, sx: number, sy: number, size: number) {
+    const p = (a: number, b: number) => new Phaser.Geom.Point(x + sx * a, y + sy * b);
+    const s = size;
+    // The open scrolls meet the frame at both ends; no image texture is laid
+    // over the painting, avoiding dark alpha blocks on mobile WebGL.
+    this.chrome.lineStyle(1.5, 0xffdda0, .96).strokePoints([
+      p(0, s), p(0, 11), p(1.5, 5), p(5, 1.5), p(11, 0), p(s, 0)], false);
+    this.chrome.lineStyle(.9, 0xb77a35, .92).strokePoints([
+      p(4, s - 4), p(4, 12), p(6, 7), p(12, 4), p(s - 4, 4)], false);
+    this.chrome.lineStyle(1.1, 0xf5cd83, .9).strokePoints([
+      p(2, s * .64), p(8, s * .52), p(13, s * .38), p(14, s * .25), p(10, s * .23), p(8, s * .31)], false);
+    this.chrome.fillStyle(0xd39a4e, .82).fillTriangle(
+      x + sx * 10, y + sy * 7, x + sx * (s * .67), y + sy * 8, x + sx * 13, y + sy * 13);
+    this.chrome.fillStyle(0xffe2a3, .95).fillCircle(x + sx * 5, y + sy * 5, 1.7);
+  }
+  private drawVictoryTime(x: number, y: number, portrait: boolean, value: string) {
+    const width = portrait ? 164 : 236;
+    const height = portrait ? 25 : 37;
+    this.chrome.fillStyle(0x06131f, .86).fillRoundedRect(x - width / 2, y - height / 2, width, height, height / 2);
+    this.chrome.lineStyle(1, 0xd5a15a, .86).strokeRoundedRect(
+      x - width / 2, y - height / 2, width, height, height / 2);
+    const clockX = x - width / 2 + (portrait ? 21 : 28);
+    const radius = portrait ? 6 : 8;
+    this.chrome.lineStyle(1.3, 0xffdd9b, .96).strokeCircle(clockX, y, radius);
+    this.chrome.lineStyle(1.2, 0xffdd9b, .96).lineBetween(clockX, y, clockX, y - radius * .52);
+    this.chrome.lineBetween(clockX, y, clockX + radius * .43, y + radius * .25);
+    for (const side of [-1, 1]) {
+      const diamondX = x + side * (width / 2 + 3);
+      this.chrome.fillStyle(0xeac083, .92).fillPoints([
+        new Phaser.Geom.Point(diamondX, y - 3), new Phaser.Geom.Point(diamondX + 3, y),
+        new Phaser.Geom.Point(diamondX, y + 3), new Phaser.Geom.Point(diamondX - 3, y)], true);
+    }
+    this.txt(x + (portrait ? 12 : 16), y, `Время ${value}`,
+      portrait ? 14 : 20, '#ffe3ad', true);
+  }
   private drawVictoryAward() {
     const layout = this.victoryScreenLayout();
     const earned = starsForTime(this.level.pieces, this.completedMs);
@@ -824,12 +869,19 @@ class PuzzleScene extends Phaser.Scene {
       const y = this.victoryStarY;
       const radius = layout.starRadius * (.82 + .18 * progress);
       const wave = progress < 1 ? Math.sin(Math.PI * progress) : 0;
-      this.fx.fillStyle(0xffd578, .035 * progress + .11 * wave)
+      this.fx.fillStyle(0xffd578, .05 * progress + .13 * wave)
         .fillCircle(x, y, this.victoryGlowRadius);
       const points = Array.from({ length: 10 }, (_, i) => new Phaser.Geom.Point(
         x + Math.cos(-Math.PI / 2 + i * Math.PI / 5) * (i % 2 ? radius * .45 : radius),
         y + Math.sin(-Math.PI / 2 + i * Math.PI / 5) * (i % 2 ? radius * .45 : radius)));
       this.fx.fillStyle(0xffd578, progress).fillPoints(points, true);
+      // A few warm facets give the earned stars depth without extra sprites or
+      // particles; the existing sequential reveal still controls visibility.
+      for (let tip = 0; tip < 5; tip++) {
+        const outer = points[tip * 2], left = points[(tip * 2 + 9) % 10], right = points[tip * 2 + 1];
+        this.fx.fillStyle(0xffecae, progress * .7).fillTriangle(x, y, outer.x, outer.y, left.x, left.y);
+        this.fx.fillStyle(0xe5a73f, progress * .55).fillTriangle(x, y, right.x, right.y, outer.x, outer.y);
+      }
       this.fx.lineStyle(1.3, 0xffe4a4, progress).strokePoints(points, true);
     }
   }
