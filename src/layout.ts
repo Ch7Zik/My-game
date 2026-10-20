@@ -7,6 +7,12 @@ export const SLOT_ORDER = [0, 1, 2, 3, 4, 5, 6, 7];
 export const SLOT_POINTS = [
   [.722, .147], [.162, .153], [.857, .404], [.262, .788],
   [.772, .844], [.498, .281], [.183, .455], [.601, .596],
+  // Twelve separate resting places for the experimental level. Its pieces
+  // retain the same board and finger scale as the existing levels.
+  [.18, .13], [.50, .14], [.82, .13],
+  [.18, .38], [.50, .38], [.82, .38],
+  [.18, .62], [.50, .62], [.82, .62],
+  [.18, .87], [.50, .86], [.82, .87],
 ];
 export function looseScale(viewportWidth: number, viewportHeight: number): number {
   return viewportHeight < 700 ? .66 : viewportWidth < 700 ? .70 : .78;

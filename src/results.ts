@@ -16,9 +16,10 @@ export const STAR_THRESHOLDS_SECONDS = {
   4: { three: 90, two: 180 },
   6: { three: 150, two: 300 },
   8: { three: 240, two: 480 },
+  12: { three: 360, two: 720 },
 } as const;
 
-export function starsForTime(pieces: 4 | 6 | 8, elapsedMs: number): Stars {
+export function starsForTime(pieces: 4 | 6 | 8 | 12, elapsedMs: number): Stars {
   const { three, two } = STAR_THRESHOLDS_SECONDS[pieces];
   return elapsedMs <= three * 1000 ? 3 : elapsedMs <= two * 1000 ? 2 : 1;
 }

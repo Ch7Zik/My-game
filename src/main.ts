@@ -381,11 +381,12 @@ class PuzzleScene extends Phaser.Scene {
     this.draw();
   }
   private removePieces() {
+    const pieceIds = this.pieces.map(piece => piece.id);
     this.dragging = null; this.hintPiece = null; this.pieces.forEach(p => p.sprite.destroy()); this.pieces = [];
     this.guideImage?.destroy(); this.guideImage = null; this.previewImage?.destroy(); this.previewImage = null;
     this.completeImage?.destroy(); this.completeImage = null;
     this.revealImage?.destroy(); this.revealImage = null;
-    for (let id = 0; id < 8; id++) { if (this.textures.exists(`piece-clean-${id}`)) this.textures.remove(`piece-clean-${id}`); if (this.textures.exists(`piece-loose-${id}`)) this.textures.remove(`piece-loose-${id}`); }
+    for (const id of pieceIds) { if (this.textures.exists(`piece-clean-${id}`)) this.textures.remove(`piece-clean-${id}`); if (this.textures.exists(`piece-loose-${id}`)) this.textures.remove(`piece-loose-${id}`); }
     if (this.textures.exists('whole-picture')) this.textures.remove('whole-picture');
   }
   private soundButton() { const w = this.viewWidth(); return new Phaser.Geom.Circle(w >= 900 ? w - 43 : w - 32, w >= 900 ? 43 : 32, 24); }
