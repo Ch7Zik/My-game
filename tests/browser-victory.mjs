@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
+import { strokeFrameRect } from '../src/chromeLayout.ts';
 
 const port = 4177;
 const base = `http://127.0.0.1:${port}/`;
 const screenshots = process.env.VICTORY_SCREENSHOT_DIR;
+const details = process.env.VICTORY_DETAIL_DIR;
 const allSizes = [[360, 640], [390, 844], [430, 932], [1920, 1080]];
 const sizes = process.env.VICTORY_SIZES
   ? allSizes.filter(([w, h]) => process.env.VICTORY_SIZES.split(',').includes(`${w}x${h}`)) : allSizes;
@@ -97,7 +99,7 @@ async function drag(page, cdp, start, target) {
 
 async function runSize(browser, width, height) {
   const mobile = width < 900;
-  const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile });
+  const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: details && width === 390 ? 2 : 1, isMobile: mobile, hasTouch: mobile });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -115,21 +117,44 @@ async function runSize(browser, width, height) {
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 4);
     const game = await page.evaluate(() => {
       const s = window.__mysticGame.scene.getScene('puzzle');
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
       return { board: s.board, back: s.backButton(), hint: s.hintButton(),
-        labels: s.children.list.filter(c => c.getData('uiText')).map(c => ({ text: c.text, bounds: c.getBounds() })) };
+        labels: s.children.list.filter(c => c.getData('uiText')).map(c => {
+          context.font = `${c.style.fontStyle} ${c.style.fontSize} ${c.style.fontFamily}`;
+          const metrics = context.measureText(c.text);
+          return { text: c.text, bounds: c.getBounds(), fontFamily: c.style.fontFamily,
+            inkHeight: metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent,
+            baseline: c.y - c.getTextMetrics().descent };
+        }) };
     });
-    const level = game.labels.find(l => l.text === 'УРОВЕНЬ 01');
+    const level = game.labels.find(l => l.text === 'УРОВЕНЬ');
+    const digits = game.labels.find(l => l.text === '01');
     const name = game.labels.find(l => l.text === 'Домик у озера');
     const timer = game.labels.find(l => /^\d\d:\d\d$/.test(l.text));
-    for (const label of [level, name, timer]) assert.ok(label && inside(label.bounds, { x: 0, y: 0, width, height }));
+    for (const label of [level, digits, name, timer]) assert.ok(label && inside(label.bounds, { x: 0, y: 0, width, height }));
+    assert.equal(level.fontFamily, digits.fontFamily);
+    assert.ok(digits.inkHeight >= level.inkHeight && digits.inkHeight <= level.inkHeight + 3,
+      `${width}: digit ink ${digits.inkHeight}, label ink ${level.inkHeight}`);
+    assert.ok(Math.abs(level.baseline - digits.baseline) < .6, `${width}: mismatched baselines`);
+    assert.ok(digits.bounds.x >= level.bounds.x + level.bounds.width);
+    assert.ok(!overlaps(digits.bounds, timer.bounds));
     assert.ok(!overlaps(level.bounds, timer.bounds));
     assert.ok(!overlaps(name.bounds, level.bounds));
+    assert.ok(!overlaps(name.bounds, digits.bounds));
     assert.ok(!overlaps(name.bounds, timer.bounds));
+    const gameFrame = strokeFrameRect(game.board, width, 2, 1.5);
+    assert.ok(gameFrame.x >= 1.5 && gameFrame.x + gameFrame.width <= width - 1.5);
     assert.ok(name.bounds.y + name.bounds.height < game.board.y);
     assert.ok(name.bounds.x > game.back.x + 19 && name.bounds.x + name.bounds.width < game.hint.x - 19);
     if (screenshots) {
       mkdirSync(screenshots, { recursive: true });
-      await page.screenshot({ path: `${screenshots}/game-${width}x${height}.jpg`, type: 'jpeg', quality: 88 });
+      await page.screenshot({ path: `${screenshots}/game-${width}x${height}.jpg`, type: 'jpeg', quality: 88, scale: 'css' });
+    }
+    if (details && width === 390) {
+      mkdirSync(details, { recursive: true });
+      await page.screenshot({ path: `${details}/game-header-390x844.png`, clip: { x: 0, y: 0, width, height: 75 }, scale: 'device' });
+      await page.screenshot({ path: `${details}/game-frame-390x844.png`, clip: { x: 0, y: 48, width, height: 62 }, scale: 'device' });
     }
     if (width === 360) {
       await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
@@ -158,6 +183,7 @@ async function runSize(browser, width, height) {
       const s = window.__mysticGame.scene.getScene('puzzle');
       return { mode: s.mode, completedMs: s.completedMs, stars: s.results[1]?.stars,
         layout: s.victoryScreenLayout(), button: s.nextButton(),
+        starY: s.victoryStarY, glowRadius: s.victoryGlowRadius,
         image: { visible: s.completeImage?.visible, bounds: s.completeImage?.getBounds() },
         labels: s.children.list.filter(c => c.getData('uiText')).map(c => ({ text: c.text, visible: c.visible,
           alpha: c.alpha, bounds: c.getBounds() })), progress: s.progress.completed,
@@ -177,9 +203,10 @@ async function runSize(browser, width, height) {
     assert.ok(Math.abs(result.image.bounds.width - picture.width) < 1);
     assert.ok(Math.abs(result.image.bounds.height - picture.height) < 1);
     const title = result.labels.find(l => l.text === 'Картина собрана!');
+    const pictureName = result.labels.find(l => l.text === 'Домик у озера');
     const time = result.labels.find(l => l.text === `Время ${String(Math.floor(result.completedMs / 60000)).padStart(2, '0')}:${String(Math.floor(result.completedMs / 1000) % 60).padStart(2, '0')}`);
     const nextLabel = result.labels.find(l => l.text === 'Далее');
-    for (const label of [title, time, nextLabel]) {
+    for (const label of [title, pictureName, time, nextLabel]) {
       assert.ok(label?.visible && label.alpha === 1);
       assert.ok(inside(label.bounds, { x: 0, y: 0, width, height }));
     }
@@ -187,6 +214,18 @@ async function runSize(browser, width, height) {
     assert.ok(!overlaps(result.button, result.image.bounds));
     assert.ok(!overlaps(title.bounds, result.image.bounds));
     assert.ok(!overlaps(time.bounds, result.image.bounds));
+    const glowBounds = [-1, 0, 1].map(i => ({
+      x: result.layout.contentX + i * result.layout.starRadius * 2.6 - result.glowRadius,
+      y: result.starY - result.glowRadius,
+      width: result.glowRadius * 2, height: result.glowRadius * 2,
+    }));
+    for (const glow of glowBounds) {
+      for (const label of [title, pictureName, time, nextLabel])
+        assert.ok(!overlaps(glow, label.bounds), `${width}: star glow overlaps ${label.text}`);
+      assert.ok(!overlaps(glow, result.image.bounds), `${width}: star glow overlaps picture`);
+    }
+    const victoryFrame = strokeFrameRect(picture, width, 7, 2.5);
+    assert.ok(victoryFrame.x >= 2.5 && victoryFrame.x + victoryFrame.width <= width - 2.5);
     if (width === 360) {
       await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
         s.level = { ...s.level, title: 'Необычайно длинное название волшебной картины среди далёких гор' }; s.draw(); });
@@ -200,10 +239,10 @@ async function runSize(browser, width, height) {
         s.level = { ...s.level, title: 'Домик у озера' }; s.draw(); });
     }
     await page.waitForTimeout(750);
-    const screenshot = await page.screenshot({ type: 'png' });
+    const screenshot = await page.screenshot({ type: 'png', scale: 'css' });
     const starR = result.layout.starRadius;
     const starX = result.layout.contentX;
-    const starY = result.layout.starsY;
+    const starY = result.starY;
     const areas = { title: title.bounds, time: time.bounds, button: result.button };
     for (let i = -1; i <= 1; i++) areas[`star${i + 2}`] = {
       x: starX + i * starR * 2.6 - starR / 2, y: starY - starR / 2, width: starR, height: starR,
@@ -211,7 +250,11 @@ async function runSize(browser, width, height) {
     const pixels = await visibleGoldPixels(page, screenshot, areas);
     assert.ok(pixels.title > 10 && pixels.time > 10 && pixels.button > 100, JSON.stringify(pixels));
     for (let i = 1; i <= 3; i++) assert.ok(pixels[`star${i}`] > 3, JSON.stringify(pixels));
-    if (screenshots) await page.screenshot({ path: `${screenshots}/victory-${width}x${height}.jpg`, type: 'jpeg', quality: 88 });
+    if (screenshots) await page.screenshot({ path: `${screenshots}/victory-${width}x${height}.jpg`, type: 'jpeg', quality: 88, scale: 'css' });
+    if (details && width === 390) {
+      await page.screenshot({ path: `${details}/victory-stars-390x844.png`, clip: { x: 70, y: 75, width: 250, height: 78 }, scale: 'device' });
+      await page.screenshot({ path: `${details}/victory-frame-390x844.png`, clip: { x: 0, y: 124, width, height: 60 }, scale: 'device' });
+    }
     if (width === 390) {
       await page.evaluate(() => { document.documentElement.style.setProperty('--safe-top', '47px');
         document.documentElement.style.setProperty('--safe-bottom', '34px'); });

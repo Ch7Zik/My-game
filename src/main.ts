@@ -8,7 +8,8 @@ import { assetUrl } from './assetUrl';
 import { PuzzleAudio } from './audio';
 import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, saveProgress, selectLevel, type Progress } from './progress';
 import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay, starsForTime, type Results } from './results';
-import { victoryScreenLayout } from './victoryLayout';
+import { fitVictoryStars, victoryScreenLayout } from './victoryLayout';
+import { strokeFrameRect } from './chromeLayout';
 import './style.css';
 
 type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion; placed: boolean; home: Point; slot: number; hit: Uint8Array; texW: number; texH: number; baseW: number; baseH: number };
@@ -31,6 +32,8 @@ class PuzzleScene extends Phaser.Scene {
   private hiddenDuration = 0;
   private completedMs = 0;
   private victoryUiLogged = false;
+  private victoryStarY = 0;
+  private victoryGlowRadius = 0;
   private timerText: Phaser.GameObjects.Text | null = null;
   private displayedTime = '';
   private pieces: Piece[] = [];
@@ -604,8 +607,10 @@ class PuzzleScene extends Phaser.Scene {
     this.uiImages.push(background);
     // The frame sits outside the authored picture and never covers or changes its masks.
     this.boardG.fillStyle(0x020a13, .72).fillRoundedRect(b.x - 2, b.y - 2, b.width + 4, b.height + 4, 6);
-    this.boardG.lineStyle(1.2, 0xd6ad72, .85).strokeRoundedRect(b.x - 2, b.y - 2, b.width + 4, b.height + 4, 6);
-    this.boardG.lineStyle(1, 0xffe0aa, .18).strokeRoundedRect(b.x - 1, b.y - 1, b.width + 2, b.height + 2, 4);
+    const outer = strokeFrameRect(b, w, 2, 1.5);
+    const inner = strokeFrameRect(b, w, 1, 3);
+    this.boardG.lineStyle(1.2, 0xd6ad72, .85).strokeRoundedRect(outer.x, outer.y, outer.width, outer.height, 6);
+    this.boardG.lineStyle(1, 0xffe0aa, .18).strokeRoundedRect(inner.x, inner.y, inner.width, inner.height, 4);
     this.guideImage?.setPosition(b.x + b.width / 2, b.y + b.height / 2).setDisplaySize(b.width, b.height);
     if (this.preview && this.previewImage) {
       const p = this.preview;
@@ -625,11 +630,11 @@ class PuzzleScene extends Phaser.Scene {
     this.iconCircle(hint.x, hint.y, mobile ? 19 : 21);
     this.backArrow(back.x, back.y);
     this.bulb(hint.x, hint.y);
-    this.txt(hx - (mobile ? 66 : 120), mobile ? 15 : 19,
-      `УРОВЕНЬ 0${this.level.id}`, mobile ? 10 : 12, '#e7bf7e', true);
+    this.drawLevelTag(hx - (mobile ? 66 : 120), mobile ? 20 : 26, mobile);
     this.displayedTime = formatTime(this.elapsedMs);
-    this.timerText = this.txt(hx + (mobile ? 72 : 120), mobile ? 15 : 19,
-      this.displayedTime, mobile ? 11 : 13, '#ffe1a8', true);
+    this.timerText = this.txt(hx + (mobile ? 72 : 120), 0,
+      this.displayedTime, mobile ? 11 : 13, '#ffe1a8', true).setOrigin(.5, 1);
+    this.timerText.y = (mobile ? 20 : 26) + this.timerText.getTextMetrics().descent;
     this.fittedTitle(hx, mobile ? 39 : 48, this.level.title, hw - (mobile ? 108 : 125),
       mobile ? 17 : 22, mobile ? 13 : 16);
   }
@@ -647,8 +652,10 @@ class PuzzleScene extends Phaser.Scene {
     this.galleryIcon(gallery.x, gallery.y);
     this.boardG.fillStyle(0x020916, .72).fillRoundedRect(b.x - 7, b.y - 7, b.width + 14, b.height + 14, 8);
     this.completeImage?.setPosition(b.x + b.width / 2, b.y + b.height / 2).setDisplaySize(b.width, b.height);
-    this.chrome.lineStyle(2, 0xe2b976, .96).strokeRoundedRect(b.x - 4, b.y - 4, b.width + 8, b.height + 8, 6);
-    this.chrome.lineStyle(1, 0xffe7bb, .53).strokeRoundedRect(b.x - 7, b.y - 7, b.width + 14, b.height + 14, 9);
+    const inner = strokeFrameRect(b, w, 4, 2.5);
+    const outer = strokeFrameRect(b, w, 7, 2.5);
+    this.chrome.lineStyle(2, 0xe2b976, .96).strokeRoundedRect(inner.x, inner.y, inner.width, inner.height, 6);
+    this.chrome.lineStyle(1, 0xffe7bb, .53).strokeRoundedRect(outer.x, outer.y, outer.width, outer.height, 9);
     for (const x of [b.x - 5, b.x + b.width + 5]) for (const y of [b.y - 5, b.y + b.height + 5]) {
       this.chrome.fillStyle(0xffdc91, .6).fillCircle(x, y, 2.4);
     }
@@ -656,13 +663,20 @@ class PuzzleScene extends Phaser.Scene {
     const title = this.fittedTitle(cx, layout.titleY, 'Картина собрана!', layout.contentWidth,
       layout.portrait ? 23 : 34, layout.portrait ? 18 : 27);
     title.setColor('#ffe8b8');
-    this.fittedTitle(cx, layout.nameY, this.level.title, layout.contentWidth,
+    const name = this.fittedTitle(cx, layout.nameY, this.level.title, layout.contentWidth,
       layout.portrait ? 15 : 23, layout.portrait ? 12 : 17).setColor('#f4d7a4');
-    this.ornamentRule(cx, (layout.nameY + layout.starsY) / 2, Math.min(layout.contentWidth - 34, 225));
+    const stars = layout.portrait
+      ? fitVictoryStars(name.getBounds().bottom, outer.y, layout.starsY, layout.starRadius)
+      : { headingShift: 0, glowRadius: layout.starRadius * 1.12, y: layout.starsY };
+    title.y -= stars.headingShift;
+    name.y -= stars.headingShift;
+    this.victoryStarY = stars.y;
+    this.victoryGlowRadius = stars.glowRadius;
+    if (!layout.portrait) this.ornamentRule(cx, (name.y + stars.y) / 2, Math.min(layout.contentWidth - 34, 225));
     for (let i = -1; i <= 1; i++) {
-      this.chrome.fillStyle(0xf5bd59, .12).fillCircle(cx + i * layout.starRadius * 2.6, layout.starsY, layout.starRadius * 1.65);
+      this.chrome.fillStyle(0xf5bd59, .12).fillCircle(cx + i * layout.starRadius * 2.6, stars.y, stars.glowRadius);
     }
-    this.drawStars(cx, layout.starsY, starsForTime(this.level.pieces, this.completedMs), layout.starRadius);
+    this.drawStars(cx, stars.y, starsForTime(this.level.pieces, this.completedMs), layout.starRadius);
     this.txt(cx, layout.timeY, `Время ${formatTime(this.completedMs)}`,
       layout.portrait ? 15 : 22, '#ffe3ad', true);
     const next = this.nextButton();
@@ -675,8 +689,29 @@ class PuzzleScene extends Phaser.Scene {
       this.victoryUiLogged = true;
       this.logVictory('ui-drawn', { stars: starsForTime(this.level.pieces, this.completedMs),
         buttonX: next.x, buttonY: next.y, buttonWidth: next.width, buttonHeight: next.height,
-        pictureBottom: b.y + b.height, resultsTop: layout.titleY });
+        pictureBottom: b.y + b.height, resultsTop: layout.titleY,
+        starY: this.victoryStarY, glowRadius: this.victoryGlowRadius });
     }
+  }
+  private drawLevelTag(x: number, baseline: number, mobile: boolean) {
+    const size = mobile ? 10 : 12;
+    const number = String(this.level.id).padStart(2, '0');
+    const context = document.createElement('canvas').getContext('2d');
+    const inkHeight = (value: string, fontSize: number) => {
+      if (!context) return fontSize * .7;
+      context.font = `bold ${fontSize}px Georgia`;
+      const metrics = context.measureText(value);
+      return metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent || fontSize * .7;
+    };
+    const targetHeight = inkHeight('УРОВЕНЬ', size) + .5;
+    let numberSize = size;
+    while (inkHeight(number, numberSize) < targetHeight && numberSize < size + 4) numberSize++;
+    const label = this.txt(0, 0, 'УРОВЕНЬ', size, '#e7bf7e', true).setOrigin(0, 1);
+    const digits = this.txt(0, 0, number, numberSize, '#e7bf7e', true).setOrigin(0, 1);
+    const gap = mobile ? 3 : 4;
+    const left = x - (label.width + gap + digits.width) / 2;
+    label.setPosition(left, baseline + label.getTextMetrics().descent);
+    digits.setPosition(left + label.width + gap, baseline + digits.getTextMetrics().descent);
   }
   private fittedTitle(x: number, y: number, value: string, available: number, preferred: number, minimum: number) {
     const title = this.txt(x, y, value, preferred, '#ffebc8', true);

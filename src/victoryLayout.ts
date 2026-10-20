@@ -13,6 +13,21 @@ export interface VictoryScreenLayout {
   portrait: boolean;
 }
 
+// Text bounds come from the rendered Phaser objects, including their font
+// metrics. The glow must have its own clearance from the name and art frame.
+export function fitVictoryStars(nameBottom: number, frameTop: number, preferredY: number, starRadius: number) {
+  const gap = 3;
+  const preferredGlow = starRadius * 1.12;
+  const requiredShift = Math.max(0, preferredGlow * 2 + gap * 2 - (frameTop - nameBottom));
+  const headingShift = Math.min(6, requiredShift);
+  const adjustedBottom = nameBottom - headingShift;
+  const glowRadius = Math.min(preferredGlow, (frameTop - adjustedBottom - gap * 2) / 2);
+  const minimumY = adjustedBottom + gap + glowRadius;
+  const maximumY = frameTop - gap - glowRadius;
+  return { headingShift, glowRadius,
+    y: Math.max(minimumY, Math.min(preferredY, maximumY)), gap };
+}
+
 // The finished art has its own layout. No puzzle board coordinates or gameplay
 // HUD positions are used here, so a resize cannot push the result offscreen.
 export function victoryScreenLayout(w: number, h: number, safeTop = 0, safeBottom = 0): VictoryScreenLayout {
