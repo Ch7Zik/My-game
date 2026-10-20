@@ -115,6 +115,8 @@ async function runSize(browser, width, height) {
     if (mobile) await page.touchscreen.tap(play.x, play.y);
     else await page.mouse.click(play.x, play.y);
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 4);
+    await page.waitForFunction(() => [...document.fonts]
+      .some(face => face.family === 'MysticLevelSerif' && face.status === 'loaded'));
     const game = await page.evaluate(() => {
       const s = window.__mysticGame.scene.getScene('puzzle');
       const canvas = document.createElement('canvas');
@@ -128,11 +130,11 @@ async function runSize(browser, width, height) {
             baseline: c.y - c.getTextMetrics().descent };
         }) };
     });
-    const level = game.labels.find(l => l.text === 'УРОВЕНЬ 01');
+    const level = game.labels.find(l => l.text === 'УРОВЕНЬ 1');
     const name = game.labels.find(l => l.text === 'Домик у озера');
     const timer = game.labels.find(l => /^\d\d:\d\d$/.test(l.text));
     for (const label of [level, name, timer]) assert.ok(label && inside(label.bounds, { x: 0, y: 0, width, height }));
-    assert.match(level.fontFamily, /^Georgia/);
+    assert.match(level.fontFamily, /^MysticLevelSerif/);
     assert.ok(level.inkHeight > 0);
     assert.ok(!overlaps(level.bounds, timer.bounds));
     assert.ok(!overlaps(name.bounds, level.bounds));
