@@ -1,0 +1,610 @@
+[
+  {
+    "size": "375x667",
+    "board": {
+      "x": 4,
+      "y": 63.75,
+      "width": 367,
+      "height": 550.5
+    },
+    "measurements": [
+      {
+        "id": 1,
+        "text": "УРОВЕНЬ 01",
+        "word": {
+          "left": 88,
+          "right": 140.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 144.5,
+          "right": 154.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 122
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 2,
+        "text": "УРОВЕНЬ 02",
+        "word": {
+          "left": 88,
+          "right": 140.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 144.5,
+          "right": 154.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 124
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 8,
+        "text": "УРОВЕНЬ 08",
+        "word": {
+          "left": 88,
+          "right": 140.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 144.5,
+          "right": 154.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 151
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 10,
+        "text": "УРОВЕНЬ 10",
+        "word": {
+          "left": 88,
+          "right": 140.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 145,
+          "right": 154.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 122
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 11,
+        "text": "УРОВЕНЬ 11",
+        "word": {
+          "left": 88.5,
+          "right": 141,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 145.5,
+          "right": 154,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 97
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 19,
+        "text": "УРОВЕНЬ 19",
+        "word": {
+          "left": 88,
+          "right": 140.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 145,
+          "right": 154.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 118
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 25,
+        "text": "УРОВЕНЬ 25",
+        "word": {
+          "left": 88,
+          "right": 140.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 144.5,
+          "right": 154.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 100
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      }
+    ],
+    "errors": []
+  },
+  {
+    "size": "390x844",
+    "board": {
+      "x": 2,
+      "y": 82.82000000000001,
+      "width": 386,
+      "height": 579
+    },
+    "measurements": [
+      {
+        "id": 1,
+        "text": "УРОВЕНЬ 01",
+        "word": {
+          "left": 95.5,
+          "right": 148,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 152,
+          "right": 162,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 122
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 2,
+        "text": "УРОВЕНЬ 02",
+        "word": {
+          "left": 95.5,
+          "right": 148,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 152,
+          "right": 162,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 124
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 8,
+        "text": "УРОВЕНЬ 08",
+        "word": {
+          "left": 95.5,
+          "right": 148,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 152,
+          "right": 162,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 151
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 10,
+        "text": "УРОВЕНЬ 10",
+        "word": {
+          "left": 95.5,
+          "right": 148,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 152.5,
+          "right": 162,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 122
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 11,
+        "text": "УРОВЕНЬ 11",
+        "word": {
+          "left": 96,
+          "right": 148.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 153,
+          "right": 161.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 97
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 19,
+        "text": "УРОВЕНЬ 19",
+        "word": {
+          "left": 95.5,
+          "right": 148,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 152.5,
+          "right": 162,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 118
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 25,
+        "text": "УРОВЕНЬ 25",
+        "word": {
+          "left": 95.5,
+          "right": 148,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 152,
+          "right": 162,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 100
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      }
+    ],
+    "errors": []
+  },
+  {
+    "size": "393x852",
+    "board": {
+      "x": 2,
+      "y": 83.31,
+      "width": 389,
+      "height": 583.5
+    },
+    "measurements": [
+      {
+        "id": 1,
+        "text": "УРОВЕНЬ 01",
+        "word": {
+          "left": 97,
+          "right": 149.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 153.5,
+          "right": 163.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 122
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 2,
+        "text": "УРОВЕНЬ 02",
+        "word": {
+          "left": 97,
+          "right": 149.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 153.5,
+          "right": 163.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 124
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 8,
+        "text": "УРОВЕНЬ 08",
+        "word": {
+          "left": 97,
+          "right": 149.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 153.5,
+          "right": 163.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 151
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 10,
+        "text": "УРОВЕНЬ 10",
+        "word": {
+          "left": 97,
+          "right": 149.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 154,
+          "right": 163.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 122
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 11,
+        "text": "УРОВЕНЬ 11",
+        "word": {
+          "left": 97.5,
+          "right": 150,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 154.5,
+          "right": 163,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 97
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 19,
+        "text": "УРОВЕНЬ 19",
+        "word": {
+          "left": 97,
+          "right": 149.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 154,
+          "right": 163.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 118
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 25,
+        "text": "УРОВЕНЬ 25",
+        "word": {
+          "left": 97,
+          "right": 149.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 153.5,
+          "right": 163.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 100
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      }
+    ],
+    "errors": []
+  },
+  {
+    "size": "430x932",
+    "board": {
+      "x": 2,
+      "y": 86.74000000000001,
+      "width": 426,
+      "height": 639
+    },
+    "measurements": [
+      {
+        "id": 1,
+        "text": "УРОВЕНЬ 01",
+        "word": {
+          "left": 115.5,
+          "right": 168,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 172,
+          "right": 182,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 122
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 2,
+        "text": "УРОВЕНЬ 02",
+        "word": {
+          "left": 115.5,
+          "right": 168,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 172,
+          "right": 182,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 124
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 8,
+        "text": "УРОВЕНЬ 08",
+        "word": {
+          "left": 115.5,
+          "right": 168,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 172,
+          "right": 182,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 151
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 10,
+        "text": "УРОВЕНЬ 10",
+        "word": {
+          "left": 115.5,
+          "right": 168,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 172.5,
+          "right": 182,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 122
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 11,
+        "text": "УРОВЕНЬ 11",
+        "word": {
+          "left": 116,
+          "right": 168.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 173,
+          "right": 181.5,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 97
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 19,
+        "text": "УРОВЕНЬ 19",
+        "word": {
+          "left": 115.5,
+          "right": 168,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 172.5,
+          "right": 182,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 118
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      },
+      {
+        "id": 25,
+        "text": "УРОВЕНЬ 25",
+        "word": {
+          "left": 115.5,
+          "right": 168,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 575
+        },
+        "number": {
+          "left": 172,
+          "right": 182,
+          "top": 13.5,
+          "bottom": 20.5,
+          "count": 100
+        },
+        "topDelta": 0,
+        "bottomDelta": 0
+      }
+    ],
+    "errors": []
+  }
+]

@@ -12,12 +12,18 @@ import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, 
 import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay, starsForTime, type Results } from './results';
 import { fitVictoryStars, victoryScreenLayout } from './victoryLayout';
 import { strokeFrameRect } from './chromeLayout';
+import levelFontUrl from './assets/NotoSerif-Bold.ttf?url';
 import './style.css';
 
 type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion; placed: boolean; home: Point; slot: number; hit: Uint8Array; texW: number; texH: number; baseW: number; baseH: number };
 const RENDER_SCALE = Math.min(window.devicePixelRatio || 1, window.innerWidth >= 900 ? 1.5 : window.innerWidth >= 700 ? 1.75 : 2);
 const BUILD_ID = (import.meta.env.VITE_BUILD_ID || 'local').slice(0, 8);
 const VICTORY_LOG_KEY = 'mystic-puzzles-victory-log-v1';
+// Bundle the level label's font so Safari and desktop render the same lining
+// numerals and Cyrillic capitals. Georgia has different glyph proportions on iOS.
+const levelFontReady = typeof FontFace === 'undefined' ? Promise.resolve() :
+  new FontFace('MysticLevelSerif', `url("${levelFontUrl}")`, { weight: '700' })
+    .load().then(face => { document.fonts.add(face); });
 const safeStorage = {
   getItem(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } },
   setItem(key: string, value: string): void { try { localStorage.setItem(key, value); } catch { /* Storage may be disabled. */ } },
@@ -80,6 +86,7 @@ class PuzzleScene extends Phaser.Scene {
     for (const level of LEVELS) this.load.image(`art-${level.id}`, level.art);
   }
   create() {
+    void levelFontReady.then(() => { if (this.mode === 'game') this.draw(); });
     this.cameras.main.setOrigin(0, 0).setZoom(RENDER_SCALE);
     this.bg = this.add.graphics().setDepth(0);
     this.boardG = this.add.graphics().setDepth(2);
@@ -803,10 +810,8 @@ class PuzzleScene extends Phaser.Scene {
     }
   }
   private drawLevelTag(x: number, y: number, mobile: boolean) {
-    // One text object gives the Cyrillic label and lining numerals identical
-    // font metrics, baseline, shadow and canvas scaling on Safari and Chromium.
-    return this.txt(x, y, `УРОВЕНЬ ${String(this.level.id).padStart(2, '0')}`,
-      mobile ? 11 : 13, '#e7bf7e', true);
+    return this.txt(x, y, `УРОВЕНЬ ${this.level.id}`,
+      mobile ? 11 : 13, '#e7bf7e', true, 'center', true, 'MysticLevelSerif, Georgia, serif');
   }
   private fittedTitle(x: number, y: number, value: string, available: number, preferred: number, minimum: number) {
     const title = this.txt(x, y, value, preferred, '#ffebc8', true);
@@ -875,8 +880,8 @@ class PuzzleScene extends Phaser.Scene {
   private button(x: number, y: number, w: number, h: number, label: string) {
     this.menuPlaque(new Phaser.Geom.Rectangle(x - w / 2, y - h / 2, w, h), label, 'plaque-gold');
   }
-  private txt(x: number, y: number, value: string, size: number, color: string, bold = false, align: 'center' | 'left' = 'center', shadow = true): Phaser.GameObjects.Text {
-    return this.add.text(x, y, value, { fontFamily: 'Georgia, serif', fontSize: `${size}px`, color, fontStyle: bold ? 'bold' : 'normal', align, shadow: shadow ? { color: '#05070c', blur: 6, fill: true, offsetY: 2 } : undefined }).setOrigin(align === 'left' ? 0 : .5, .5).setDepth(200).setResolution(RENDER_SCALE).setData('uiText', true);
+  private txt(x: number, y: number, value: string, size: number, color: string, bold = false, align: 'center' | 'left' = 'center', shadow = true, fontFamily = 'Georgia, serif'): Phaser.GameObjects.Text {
+    return this.add.text(x, y, value, { fontFamily, fontSize: `${size}px`, color, fontStyle: bold ? 'bold' : 'normal', align, shadow: shadow ? { color: '#05070c', blur: 6, fill: true, offsetY: 2 } : undefined }).setOrigin(align === 'left' ? 0 : .5, .5).setDepth(200).setResolution(RENDER_SCALE).setData('uiText', true);
   }
   private ensureWholeTexture() {
     if (this.textures.exists('whole-picture')) return;

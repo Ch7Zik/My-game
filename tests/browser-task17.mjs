@@ -120,6 +120,8 @@ async function run(browser, width, height) {
     const fifth = await page.evaluate(() => { const r = window.__mysticGame.scene.getScene('puzzle').cardRects()[4]; return { x: r.centerX, y: r.centerY }; });
     await tap(page, mobile, fifth.x, fifth.y);
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'game' && window.__mysticGame.scene.getScene('puzzle').pieces.length === 8);
+    await page.waitForFunction(() => [...document.fonts]
+      .some(face => face.family === 'MysticLevelSerif' && face.status === 'loaded'));
     await shot('game');
     const gameMetrics = await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle'); return {
       board: s.board, labels: s.children.list.filter(c => c.getData('uiText')).map(c => ({ text: c.text, bounds: c.getBounds() })),
@@ -133,14 +135,14 @@ async function run(browser, width, height) {
           const s = window.__mysticGame.scene.getScene('puzzle');
           s.level = { ...s.level, id: levelId }; s.draw();
           const items = s.children.list.filter(c => c.getData('uiText'));
-          const label = items.find(c => c.text === `УРОВЕНЬ ${String(levelId).padStart(2, '0')}`);
+          const label = items.find(c => c.text === `УРОВЕНЬ ${levelId}`);
           return { count: items.filter(c => c.text.startsWith('УРОВЕНЬ')).length,
             text: label?.text, bounds: label?.getBounds(), fontFamily: label?.style.fontFamily };
         }, id);
         if (!baseline) {
           assert.equal(tag.count, 1);
-          assert.equal(tag.text, `УРОВЕНЬ ${String(id).padStart(2, '0')}`);
-          assert.match(tag.fontFamily, /^Georgia/);
+          assert.equal(tag.text, `УРОВЕНЬ ${id}`);
+          assert.match(tag.fontFamily, /^MysticLevelSerif/);
           assert.ok(tag.bounds.x >= 0 && tag.bounds.x + tag.bounds.width <= width);
         }
         if (output && (id === 1 || id === 25)) await page.screenshot({
