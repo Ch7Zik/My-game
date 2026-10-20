@@ -13,6 +13,14 @@ export interface VictoryScreenLayout {
   portrait: boolean;
 }
 
+// Three calm beats finish within one second of the actual puzzle completion.
+// The result layout and button never wait for this decorative progress.
+export function victoryAwardProgress(elapsedMs: number, index: number, reducedMotion = false): number {
+  if (reducedMotion) return 1;
+  const step = Math.max(0, Math.min(1, (elapsedMs - 260 - index * 190) / 250));
+  return step * step * (3 - 2 * step);
+}
+
 // Text bounds come from the rendered Phaser objects, including their font
 // metrics. The glow must have its own clearance from the name and art frame.
 export function fitVictoryStars(nameBottom: number, frameTop: number, preferredY: number, starRadius: number) {

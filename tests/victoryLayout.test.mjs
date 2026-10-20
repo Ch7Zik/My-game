@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gameLayout } from '../src/layout.ts';
-import { fitVictoryStars, victoryScreenLayout } from '../src/victoryLayout.ts';
+import { fitVictoryStars, victoryAwardProgress, victoryScreenLayout } from '../src/victoryLayout.ts';
 
 test('independent victory composition fits art, time, stars and button at every target size', () => {
   for (const [w, h] of [[360, 640], [390, 844], [430, 932], [1920, 1080]]) {
@@ -35,4 +35,16 @@ test('star art and its glow remain between the measured name and picture frame',
     assert.ok(fit.y - fit.glowRadius >= nameBottom - fit.headingShift + fit.gap, `${w}: name clearance`);
     assert.ok(fit.y + fit.glowRadius <= frameTop - fit.gap, `${w}: frame clearance`);
   }
+});
+
+test('earned stars appear in three short beats and reduced motion shows them immediately', () => {
+  for (let index = 0; index < 3; index++) {
+    assert.equal(victoryAwardProgress(0, index), 0);
+    assert.equal(victoryAwardProgress(900, index), 1);
+    assert.equal(victoryAwardProgress(0, index, true), 1);
+    for (let ms = 1; ms <= 900; ms++)
+      assert.ok(victoryAwardProgress(ms, index) >= victoryAwardProgress(ms - 1, index));
+  }
+  assert.ok(victoryAwardProgress(610, 0) > victoryAwardProgress(610, 1));
+  assert.equal(victoryAwardProgress(610, 2), 0);
 });
