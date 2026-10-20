@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gameLayout } from '../src/layout.ts';
-import { victoryScreenLayout } from '../src/victoryLayout.ts';
+import { fitVictoryStars, victoryScreenLayout } from '../src/victoryLayout.ts';
 
 test('independent victory composition fits art, time, stars and button at every target size', () => {
   for (const [w, h] of [[360, 640], [390, 844], [430, 932], [1920, 1080]]) {
@@ -21,5 +21,18 @@ test('independent victory composition fits art, time, stars and button at every 
       assert.ok(button.x >= 0 && button.x + button.width <= w);
       if (w < 900) assert.notDeepEqual(picture, gameLayout(w, h).board);
     }
+  }
+});
+
+test('star art and its glow remain between the measured name and picture frame', () => {
+  for (const [w, h] of [[360, 640], [390, 844], [430, 932]]) {
+    const layout = victoryScreenLayout(w, h);
+    const frameTop = layout.picture.y - 7;
+    // Allow for the measured lower edge of a portrait Phaser title.
+    const nameBottom = layout.nameY + 10;
+    const fit = fitVictoryStars(nameBottom, frameTop, layout.starsY, layout.starRadius);
+    assert.ok(fit.glowRadius >= layout.starRadius, `${w}: glow must contain the stars`);
+    assert.ok(fit.y - fit.glowRadius >= nameBottom - fit.headingShift + fit.gap, `${w}: name clearance`);
+    assert.ok(fit.y + fit.glowRadius <= frameTop - fit.gap, `${w}: frame clearance`);
   }
 });
