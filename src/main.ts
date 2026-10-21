@@ -4,6 +4,7 @@ import { galleryGrid } from './galleryLayout';
 import { levelGrid } from './levelGrid';
 import { createRegions, inspectRegions, qualityProblems, type PieceRegion, type Point } from './geometry';
 import { canAdvance, canDrag, isComplete, shouldSnap, wasDragged } from './puzzleRules';
+import { pieceDepth } from './pieceLayers';
 import { gameLayout, looseScale, startPosition, SLOT_ORDER, type Rect } from './layout';
 import { LEVELS, levelById, type LevelConfig } from './levels';
 import { assetUrl } from './assetUrl';
@@ -169,7 +170,7 @@ class PuzzleScene extends Phaser.Scene {
       lctx.drawImage(rimCanvas, 0, 0); lctx.drawImage(clean, 0, 0);
       this.textures.addCanvas(`piece-clean-${region.id}`, clean);
       this.textures.addCanvas(`piece-loose-${region.id}`, loose);
-      const sprite = this.add.image(0, 0, `piece-loose-${region.id}`).setDepth(10 + region.id);
+      const sprite = this.add.image(0, 0, `piece-loose-${region.id}`).setDepth(pieceDepth(region.id, false));
       const piece: Piece = { id: region.id, sprite, region, placed: false, home: { x: 0, y: 0 }, slot: this.level.slots[region.id] ?? SLOT_ORDER[region.id], hit, texW: tw, texH: th, baseW: 0, baseH: 0 };
       this.pieces.push(piece);
     }
@@ -179,6 +180,7 @@ class PuzzleScene extends Phaser.Scene {
 
   private reflowPieces() {
     if (!this.pieces.length) return;
+    this.dragging?.sprite.clearTint();
     this.dragging = null;
     const cw = this.raster.width, ch = this.raster.height, scale = looseScale(this.viewWidth(), this.viewHeight());
     for (const piece of this.pieces) {
@@ -188,6 +190,7 @@ class PuzzleScene extends Phaser.Scene {
       piece.home = { x: this.board.x + (b.x + b.width / 2) / cw * this.board.width, y: this.board.y + (b.y + b.height / 2) / ch * this.board.height };
       const effective = piece.placed ? 1 : scale;
       piece.sprite.setDisplaySize(piece.baseW * effective, piece.baseH * effective);
+      piece.sprite.setDepth(pieceDepth(piece.id, piece.placed));
       const start = startPosition(this.board, this.viewWidth(), piece.slot, piece.sprite.displayWidth, piece.sprite.displayHeight);
       piece.sprite.setPosition(piece.placed ? piece.home.x : start.x, piece.placed ? piece.home.y : start.y);
     }
@@ -244,7 +247,7 @@ class PuzzleScene extends Phaser.Scene {
     const hit = [...this.pieces].sort((a, b) => b.sprite.depth - a.sprite.depth).find(p => canDrag(p.placed) && this.pieceContains(p, x, y));
     if (!hit) return;
     this.dragging = hit;
-    hit.sprite.setDepth(100).setTint(0xfff3cf);
+    hit.sprite.setDepth(pieceDepth(hit.id, false, true)).setTint(0xfff3cf);
     this.pointerOffset = { x: hit.sprite.x - x, y: hit.sprite.y - y };
     this.dragOrigin = { x: hit.sprite.x, y: hit.sprite.y };
     const scale = looseScale(this.viewWidth(), this.viewHeight()) * 1.025;
@@ -287,13 +290,14 @@ class PuzzleScene extends Phaser.Scene {
     }
     if (!this.dragging) return;
     const p = this.dragging; this.dragging = null;
-    p.sprite.clearTint().setDepth(10 + p.id);
+    p.sprite.clearTint();
     const moved = wasDragged(this.dragOrigin, { x: p.sprite.x, y: p.sprite.y });
     const scale = looseScale(this.viewWidth(), this.viewHeight());
     p.sprite.setDisplaySize(p.baseW * scale, p.baseH * scale);
     const radius = Math.max(28, this.board.width * .14);
     if (moved && shouldSnap({ x: p.sprite.x, y: p.sprite.y }, p.home, radius)) {
       p.placed = true; if (this.level.id === 1) this.tutorialDone = true;
+      p.sprite.setDepth(pieceDepth(p.id, true));
       const lastPiece = isComplete(this.pieces.map(piece => piece.placed));
       let settled = false;
       const settle = () => {
@@ -314,7 +318,7 @@ class PuzzleScene extends Phaser.Scene {
           settle();
         }
       }, 350);
-    } else this.draw();
+    } else { p.sprite.setDepth(pieceDepth(p.id, false)); this.draw(); }
   }
   private pieceContains(piece: Piece, x: number, y: number) {
     const sprite = piece.sprite;
