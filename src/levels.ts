@@ -4,9 +4,9 @@ export interface LevelConfig {
   id: number;
   title: string;
   art: string;
-  pieces: 4 | 6 | 8 | 12;
-  columns: 2 | 3;
-  rows: 2 | 3 | 4;
+  pieces: 4 | 6 | 8 | 12 | 16 | 20;
+  columns: 2 | 3 | 4;
+  rows: 2 | 3 | 4 | 5;
   seed: number;
   slots: readonly number[];
   phrase: string;
@@ -22,3 +22,10 @@ export const LEVELS: readonly LevelConfig[] = [
 ];
 
 export function levelById(id: number): LevelConfig { return LEVELS.find(level => level.id === id) ?? LEVELS[0]; }
+
+export function levelForPlay(id: number, devPieces: number | null, devMode: boolean): LevelConfig {
+  const level = levelById(id);
+  if (!devMode || id !== 6 || (devPieces !== 16 && devPieces !== 20)) return level;
+  return { ...level, pieces: devPieces, columns: 4, rows: devPieces === 16 ? 4 : 5,
+    slots: Array.from({ length: devPieces }, (_, index) => index) };
+}

@@ -5,8 +5,9 @@ import { levelGrid } from './levelGrid';
 import { createRegions, inspectRegions, qualityProblems, type PieceRegion, type Point } from './geometry';
 import { canAdvance, canDrag, isComplete, shouldSnap, wasDragged } from './puzzleRules';
 import { pieceDepth } from './pieceLayers';
+import { scatterPieces, scatterPosition } from './scatter';
 import { gameLayout, looseScale, startPosition, SLOT_ORDER, type Rect } from './layout';
-import { LEVELS, levelById, type LevelConfig } from './levels';
+import { LEVELS, levelById, levelForPlay, type LevelConfig } from './levels';
 import { assetUrl } from './assetUrl';
 import { PuzzleAudio } from './audio';
 import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, saveProgress, selectLevel, type Progress } from './progress';
@@ -16,7 +17,7 @@ import { strokeFrameRect } from './chromeLayout';
 import levelFontUrl from './assets/NotoSerif-Bold.ttf?url';
 import './style.css';
 
-type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion; placed: boolean; home: Point; slot: number; hit: Uint8Array; texW: number; texH: number; baseW: number; baseH: number };
+type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion; placed: boolean; home: Point; slot: number; start: Point | null; hit: Uint8Array; texW: number; texH: number; baseW: number; baseH: number };
 const RENDER_SCALE = Math.min(window.devicePixelRatio || 1, window.innerWidth >= 900 ? 1.5 : window.innerWidth >= 700 ? 1.75 : 2);
 const BUILD_ID = (import.meta.env.VITE_BUILD_ID || 'local').slice(0, 8);
 const VICTORY_LOG_KEY = 'mystic-puzzles-victory-log-v1';
@@ -77,6 +78,8 @@ class PuzzleScene extends Phaser.Scene {
   private raster = { width: 0, height: 0 };
   private audio = new PuzzleAudio(safeStorage);
   private soundPanelOpen = false;
+  private readonly devPieces = import.meta.env.DEV ? Number(new URLSearchParams(window.location.search).get('devPieces')) : 0;
+  private shuffleSeed = 0;
 
   constructor() { super('puzzle'); }
   preload() {
@@ -111,7 +114,9 @@ class PuzzleScene extends Phaser.Scene {
       }
       if (this.mode === 'complete') this.logVictory(document.hidden ? 'hidden' : 'visible');
     });
-    this.layout(); this.draw();
+    this.layout();
+    if (this.devPieces === 16 || this.devPieces === 20) this.startGame(6);
+    else this.draw();
   }
 
   private viewWidth() { return this.scale.width / RENDER_SCALE; }
@@ -171,8 +176,21 @@ class PuzzleScene extends Phaser.Scene {
       this.textures.addCanvas(`piece-clean-${region.id}`, clean);
       this.textures.addCanvas(`piece-loose-${region.id}`, loose);
       const sprite = this.add.image(0, 0, `piece-loose-${region.id}`).setDepth(pieceDepth(region.id, false));
-      const piece: Piece = { id: region.id, sprite, region, placed: false, home: { x: 0, y: 0 }, slot: this.level.slots[region.id] ?? SLOT_ORDER[region.id], hit, texW: tw, texH: th, baseW: 0, baseH: 0 };
+      const piece: Piece = { id: region.id, sprite, region, placed: false, home: { x: 0, y: 0 }, slot: this.level.slots[region.id] ?? SLOT_ORDER[region.id], start: null, hit, texW: tw, texH: th, baseW: 0, baseH: 0 };
       this.pieces.push(piece);
+    }
+    if (this.level.id === 6) {
+      const scale = looseScale(this.viewWidth(), this.viewHeight());
+      const sizes = this.pieces.map(piece => {
+        const b = piece.region.bounds;
+        return { id: piece.id,
+          home: { x: this.board.x + (b.x + b.width / 2) / cw * this.board.width,
+            y: this.board.y + (b.y + b.height / 2) / ch * this.board.height },
+          width: piece.texW / cw * this.board.width * scale,
+          height: piece.texH / ch * this.board.height * scale };
+      });
+      const starts = scatterPieces(sizes, this.board, this.shuffleSeed);
+      this.pieces.forEach((piece, index) => { piece.start = starts[index]; });
     }
     this.startedAt = performance.now(); this.hiddenDuration = 0; this.hiddenAt = document.hidden ? this.startedAt : null;
     this.reflowPieces(); this.mode = 'game'; this.draw();
@@ -191,7 +209,8 @@ class PuzzleScene extends Phaser.Scene {
       const effective = piece.placed ? 1 : scale;
       piece.sprite.setDisplaySize(piece.baseW * effective, piece.baseH * effective);
       piece.sprite.setDepth(pieceDepth(piece.id, piece.placed));
-      const start = startPosition(this.board, this.viewWidth(), piece.slot, piece.sprite.displayWidth, piece.sprite.displayHeight);
+      const start = piece.start ? scatterPosition(this.board, piece.start, piece.sprite.displayWidth, piece.sprite.displayHeight)
+        : startPosition(this.board, this.viewWidth(), piece.slot, piece.sprite.displayWidth, piece.sprite.displayHeight);
       piece.sprite.setPosition(piece.placed ? piece.home.x : start.x, piece.placed ? piece.home.y : start.y);
     }
     this.guideImage?.setPosition(this.board.x + this.board.width / 2, this.board.y + this.board.height / 2).setDisplaySize(this.board.width, this.board.height);
@@ -371,9 +390,10 @@ class PuzzleScene extends Phaser.Scene {
     } catch { /* Diagnostics must never interrupt a victory. */ }
   }
   private startGame(id: number) {
-    if (!isUnlocked(this.progress, id)) return;
+    if (!isUnlocked(this.progress, id) && !(import.meta.env.DEV && id === 6 && (this.devPieces === 16 || this.devPieces === 20))) return;
     this.removePieces();
-    this.level = levelById(id);
+    this.level = levelForPlay(id, this.devPieces, import.meta.env.DEV);
+    this.shuffleSeed = Math.floor(Math.random() * 0x100000000);
     this.progress = selectLevel(this.progress, id);
     saveProgress(safeStorage, this.progress);
     this.mode = 'game'; this.artLoaded = false; this.tutorialDone = false;

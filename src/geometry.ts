@@ -57,14 +57,19 @@ export function createRegions(width: number, height: number, cols = 2, rows = 4,
   const count = cols * rows;
   const authored = cols === 2 && (rows === 2 || rows === 3 || rows === 4);
   const experimental = cols === 3 && rows === 4;
-  const curatedSites = experimental ? TWELVE_SITES : count === 4 ? FOUR_SITES : count === 6 ? SIX_SITES : LEVEL_ONE_SITES;
+  const dense = cols === 4 && (rows === 4 || rows === 5);
+  const curatedSites = dense ? Array.from({ length: count }, (_, i) => {
+    const column = i % cols, row = Math.floor(i / cols);
+    return { x: (column + .5 + .09 * Math.sin(i * 2.71 + seed * .01)) / cols,
+      y: (row + .5 + .09 * Math.cos(i * 3.17 + seed * .007)) / rows };
+  }) : experimental ? TWELVE_SITES : count === 4 ? FOUR_SITES : count === 6 ? SIX_SITES : LEVEL_ONE_SITES;
   const labels = new Uint8Array(width * height);
   const sums = Array.from({ length: count }, () => ({ x: 0, y: 0, n: 0, minX: width, minY: height, maxX: 0, maxY: 0 }));
   const sites = Array.from({ length: count }, (_, i) => ({ x: ((i % cols) + .5) / cols, y: (Math.floor(i / cols) + .5) / rows }));
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
     const u = (x + .5) / width, v = (y + .5) / height;
     let id: number;
-    if (authored || experimental) {
+    if (authored || experimental || dense) {
       const p = warp(u, v);
       if (count === 4) {
         // Broad waves give the first two difficulty tiers recognisable, shared
@@ -72,7 +77,7 @@ export function createRegions(width: number, height: number, cols = 2, rows = 4,
         p.x += .070 * Math.sin(v * Math.PI * 2.5 + seed * .002) * Math.sin(u * Math.PI);
         p.y += .050 * Math.sin(u * Math.PI * 2.9 + seed * .001) * Math.sin(v * Math.PI);
       }
-      if (experimental) {
+      if (experimental || dense) {
         p.x += .022 * Math.sin(v * Math.PI * 4.4 + seed * .001) * Math.sin(u * Math.PI);
         p.y += .018 * Math.sin(u * Math.PI * 5.1 + seed * .001) * Math.sin(v * Math.PI);
       }
@@ -80,8 +85,8 @@ export function createRegions(width: number, height: number, cols = 2, rows = 4,
       for (let i = 0; i < curatedSites.length; i++) {
         const site = curatedSites[i];
         const dx = (p.x - site.x) * 1.02, dy = p.y - site.y;
-        let score = dx * dx + dy * dy + (count === 8 ? LEVEL_ONE_WEIGHTS[i] : experimental ? .0015 * Math.sin(seed * .012 + i * 2.3) : .007 * Math.sin(seed * .012 + i * 2.3));
-        for (const lobe of LOBES) if (!experimental && lobe.id % count === i) {
+        let score = dx * dx + dy * dy + (count === 8 ? LEVEL_ONE_WEIGHTS[i] : experimental || dense ? .0015 * Math.sin(seed * .012 + i * 2.3) : .007 * Math.sin(seed * .012 + i * 2.3));
+        for (const lobe of LOBES) if (!experimental && !dense && lobe.id % count === i) {
           const lx = (u - lobe.x) / lobe.rx, ly = (v - lobe.y) / lobe.ry;
           score -= lobe.power * (count === 8 ? 1 : .75) * Math.exp(-2 * (lx * lx + ly * ly));
         }
@@ -103,8 +108,8 @@ export function createRegions(width: number, height: number, cols = 2, rows = 4,
     if (x < s.minX) s.minX = x; if (x > s.maxX) s.maxX = x;
     if (y < s.minY) s.minY = y; if (y > s.maxY) s.maxY = y;
   }
-  if (authored || experimental) {
-    const smooth = smoothLabels(labels, width, height, count, Math.max(2, Math.round(width * (experimental ? .018 : .032))));
+  if (authored || experimental || dense) {
+    const smooth = smoothLabels(labels, width, height, count, Math.max(2, Math.round(width * (experimental || dense ? .018 : .032))));
     labels.set(smooth);
     for (const s of sums) { s.x = 0; s.y = 0; s.n = 0; s.minX = width; s.minY = height; s.maxX = 0; s.maxY = 0; }
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
@@ -210,14 +215,14 @@ export function qualityProblems(quality: RegionQuality[]): string[] {
   const problems: string[] = [];
   for (const q of quality) {
     if (!q.connected) problems.push(`Piece ${q.id}: disconnected`);
-    if (q.areaRatio < .065) problems.push(`Piece ${q.id}: area too small`);
+    if (q.areaRatio < (quality.length > 12 ? .72 / quality.length : .065)) problems.push(`Piece ${q.id}: area too small`);
     if (q.aspect < .44 || q.aspect > 2.7) problems.push(`Piece ${q.id}: too elongated`);
     if (q.localWidth < .085 || q.localHeight < .075 || q.thinRows > 7) problems.push(`Piece ${q.id}: narrow section`);
-    if (q.sharpTurns > 0) problems.push(`Piece ${q.id}: sharp bend`);
+    if (q.sharpTurns > (quality.length > 12 ? 1 : 0)) problems.push(`Piece ${q.id}: sharp bend`);
   }
   for (let i = 0; i < quality.length; i++) for (let j = i + 1; j < quality.length; j++) {
     const difference = quality[i].signature.reduce((n, bit, k) => n + (bit === quality[j].signature[k] ? 0 : 1), 0);
-    if (difference < 3) problems.push(`Pieces ${i} and ${j}: similar silhouettes`);
+    if (difference < (quality.length > 12 ? 2 : 3)) problems.push(`Pieces ${i} and ${j}: similar silhouettes`);
   }
   return problems;
 }
