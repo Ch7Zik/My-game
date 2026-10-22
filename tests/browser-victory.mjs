@@ -35,11 +35,14 @@ async function visibleGoldPixels(page, screenshot, areas) {
     canvas.width = image.width; canvas.height = image.height;
     const context = canvas.getContext('2d');
     context.drawImage(image, 0, 0);
+    const game = window.__mysticGame.scene.getScene('puzzle');
+    const frame = document.querySelector('#game canvas').getBoundingClientRect();
     const counts = {};
     for (const [name, rect] of Object.entries(areas)) {
-      const x = Math.max(0, Math.floor(rect.x)), y = Math.max(0, Math.floor(rect.y));
-      const width = Math.min(image.width - x, Math.ceil(rect.width));
-      const height = Math.min(image.height - y, Math.ceil(rect.height));
+      const x = Math.max(0, Math.floor(frame.left + rect.x * frame.width / game.viewWidth()));
+      const y = Math.max(0, Math.floor(frame.top + rect.y * frame.height / game.viewHeight()));
+      const width = Math.min(image.width - x, Math.ceil(rect.width * frame.width / game.viewWidth()));
+      const height = Math.min(image.height - y, Math.ceil(rect.height * frame.height / game.viewHeight()));
       const pixels = context.getImageData(x, y, width, height).data;
       let warm = 0;
       for (let index = 0; index < pixels.length; index += 4) {
@@ -50,6 +53,15 @@ async function visibleGoldPixels(page, screenshot, areas) {
     }
     return counts;
   }, { encoded: screenshot.toString('base64'), areas });
+}
+
+async function screenPoint(page, point) {
+  return page.evaluate(({ x, y }) => {
+    const game = window.__mysticGame.scene.getScene('puzzle');
+    const frame = document.querySelector('#game canvas').getBoundingClientRect();
+    return { x: frame.left + x * frame.width / game.viewWidth(),
+      y: frame.top + y * frame.height / game.viewHeight() };
+  }, point);
 }
 
 async function filledAwardPixels(page, screenshot, layout, starY) {
@@ -97,6 +109,8 @@ async function dragCoordinates(page, id) {
 }
 
 async function drag(page, cdp, start, target) {
+  start = await screenPoint(page, start);
+  target = await screenPoint(page, target);
   if (cdp) {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...start, id: 1 }] });
     for (let step = 1; step <= 12; step++) {
@@ -130,8 +144,9 @@ async function runSize(browser, width, height) {
       const button = window.__mysticGame.scene.getScene('puzzle').menuButton();
       return { x: button.centerX, y: button.centerY };
     });
-    if (mobile) await page.touchscreen.tap(play.x, play.y);
-    else await page.mouse.click(play.x, play.y);
+    const playScreen = await screenPoint(page, play);
+    if (mobile) await page.touchscreen.tap(playScreen.x, playScreen.y);
+    else await page.mouse.click(playScreen.x, playScreen.y);
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 4);
     await page.waitForFunction(() => [...document.fonts]
       .some(face => face.family === 'MysticLevelSerif' && face.status === 'loaded'));
@@ -333,12 +348,12 @@ async function runSize(browser, width, height) {
       await page.setViewportSize({ width, height });
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').viewWidth() === 390);
       await page.setViewportSize({ width: 844, height: 390 });
-      await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').viewWidth() === 844);
+      await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').viewWidth() <= 390 * 9 / 16 + 1);
       const landscape = await page.evaluate(() => { const scene = window.__mysticGame.scene.getScene('puzzle');
         return { picture: scene.completeImage?.getBounds(), button: scene.nextButton(),
-          scrollWidth: document.documentElement.scrollWidth }; });
-      assert.ok(inside(landscape.picture, { x: 0, y: 0, width: 844, height: 390 }));
-      assert.ok(inside(landscape.button, { x: 0, y: 0, width: 844, height: 390 }));
+          viewWidth: scene.viewWidth(), scrollWidth: document.documentElement.scrollWidth }; });
+      assert.ok(inside(landscape.picture, { x: 0, y: 0, width: landscape.viewWidth, height: 390 }));
+      assert.ok(inside(landscape.button, { x: 0, y: 0, width: landscape.viewWidth, height: 390 }));
       assert.ok(!overlaps(landscape.picture, landscape.button));
       assert.equal(landscape.scrollWidth, 844);
       await page.setViewportSize({ width, height });
@@ -348,8 +363,9 @@ async function runSize(browser, width, height) {
       assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').mode), 'complete');
     }
     const next = await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').nextButton());
-    if (mobile) await page.touchscreen.tap(next.x + next.width / 2, next.y + next.height / 2);
-    else await page.mouse.click(next.x + next.width / 2, next.y + next.height / 2);
+    const nextScreen = await screenPoint(page, { x: next.x + next.width / 2, y: next.y + next.height / 2 });
+    if (mobile) await page.touchscreen.tap(nextScreen.x, nextScreen.y);
+    else await page.mouse.click(nextScreen.x, nextScreen.y);
     await page.waitForFunction(() => { const s = window.__mysticGame.scene.getScene('puzzle');
       return s.mode === 'game' && s.level.id === 2; });
     await page.reload();

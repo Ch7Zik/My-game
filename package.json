@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "build:pages": "tsc -b && vite build --base=/My-game/",
     "test:browser": "node tests/browser-victory.mjs && node tests/browser-level-six.mjs && node tests/browser-task23.mjs",
+    "test:menu": "node tests/browser-menu.mjs",
     "test": "node --test"
   },
   "dependencies": {

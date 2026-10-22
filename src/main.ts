@@ -21,6 +21,7 @@ type Piece = { id: number; sprite: Phaser.GameObjects.Image; region: PieceRegion
 const RENDER_SCALE = Math.min(window.devicePixelRatio || 1, window.innerWidth >= 900 ? 1.5 : window.innerWidth >= 700 ? 1.75 : 2);
 const BUILD_ID = (import.meta.env.VITE_BUILD_ID || 'local').slice(0, 8);
 const VICTORY_LOG_KEY = 'mystic-puzzles-victory-log-v1';
+const MENU_REFERENCE = { width: 938, height: 1677 };
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 // Bundle the level label's font so Safari and desktop render the same lining
 // numerals and Cyrillic capitals. Georgia has different glyph proportions on iOS.
@@ -50,6 +51,7 @@ class PuzzleScene extends Phaser.Scene {
   private displayedTime = '';
   private pieces: Piece[] = [];
   private mode: 'menu' | 'levels' | 'gallery' | 'view' | 'game' | 'complete' = 'menu';
+  private lastDrawMode: typeof this.mode | null = null;
   private viewedLevel = 1;
   private galleryScrollRow = 0;
   private levelScrollRow = 0;
@@ -83,8 +85,11 @@ class PuzzleScene extends Phaser.Scene {
 
   constructor() { super('puzzle'); }
   preload() {
-    this.load.image('menu-storybook', assetUrl('assets/menu-storybook.webp'));
-    this.load.image('menu-storybook-wide', assetUrl('assets/menu-storybook-wide.webp'));
+    this.load.image('menu-alchemist', assetUrl('assets/menu-alchemist.webp'));
+    this.load.image('menu-title', assetUrl('assets/menu-title.webp'));
+    this.load.image('menu-button-gold', assetUrl('assets/menu-button-gold.webp'));
+    this.load.image('menu-button-levels', assetUrl('assets/menu-button-levels.webp'));
+    this.load.image('menu-button-gallery', assetUrl('assets/menu-button-gallery.webp'));
     this.load.image('plaque-gold', assetUrl('assets/plaque-gold.webp'));
     this.load.image('plaque-navy', assetUrl('assets/plaque-navy.webp'));
     this.load.image('header-ornate', assetUrl('assets/header-ornate.webp'));
@@ -222,7 +227,9 @@ class PuzzleScene extends Phaser.Scene {
     const x = pointer.x / RENDER_SCALE, y = pointer.y / RENDER_SCALE;
     this.audio.unlock();
     if (this.mode === 'menu') {
-      if (this.soundButton().contains(x, y)) { this.soundPanelOpen = !this.soundPanelOpen; this.draw(); return; }
+      if (this.soundButton().contains(x, y) || this.settingsButton().contains(x, y)) {
+        this.soundPanelOpen = !this.soundPanelOpen; this.draw(); return;
+      }
       if (this.soundPanelOpen) {
         if (this.musicButton().contains(x, y)) { this.audio.setMusic(!this.audio.settings.music); this.draw(); return; }
         if (this.effectsButton().contains(x, y)) { this.audio.setEffects(!this.audio.settings.effects); this.draw(); return; }
@@ -233,7 +240,8 @@ class PuzzleScene extends Phaser.Scene {
         this.menuPressed = true; this.draw();
         this.time.delayedCall(100, () => {
           this.menuPressed = false;
-          if (next > LEVELS.length) { this.mode = 'levels'; this.draw(); } else this.startGame(next);
+          if (next > LEVELS.length) this.startGame(1);
+          else this.startGame(next);
         });
       } else if (this.levelsButton().contains(x, y)) { this.mode = 'levels'; this.draw(); }
       else if (this.galleryButton().contains(x, y)) { this.mode = 'gallery'; this.draw(); }
@@ -413,14 +421,24 @@ class PuzzleScene extends Phaser.Scene {
     for (const id of pieceIds) { if (this.textures.exists(`piece-clean-${id}`)) this.textures.remove(`piece-clean-${id}`); if (this.textures.exists(`piece-loose-${id}`)) this.textures.remove(`piece-loose-${id}`); }
     if (this.textures.exists('whole-picture')) this.textures.remove('whole-picture');
   }
-  private soundButton() { const w = this.viewWidth(); return new Phaser.Geom.Circle(w >= 900 ? w - 43 : w - 32, w >= 900 ? 43 : 32, 24); }
-  private soundPanel() { const w = this.viewWidth(), y = this.soundButton().y + 32; return new Phaser.Geom.Rectangle(w - 258, y, 244, 119); }
+  private soundButton() { return new Phaser.Geom.Circle(this.viewWidth() - 79, this.safeInset('top') + 29, 23); }
+  private settingsButton() { return new Phaser.Geom.Circle(this.viewWidth() - 29, this.safeInset('top') + 29, 23); }
+  private soundPanel() { const w = this.viewWidth(), y = Math.max(this.settingsButton().y + 30, 539 * this.menuScale() + 8), width = Math.min(244, w - 24); return new Phaser.Geom.Rectangle(w - width - 12, y, width, 119); }
   private musicButton() { const r = this.soundPanel(); return new Phaser.Geom.Rectangle(r.x + 8, r.y + 9, r.width - 16, 50); }
   private effectsButton() { const r = this.soundPanel(); return new Phaser.Geom.Rectangle(r.x + 8, r.y + 60, r.width - 16, 50); }
-  private menuButton() { const w = this.viewWidth(), h = this.viewHeight(), width = Math.min(w >= 900 ? 356 : 286, w * .79); return new Phaser.Geom.Rectangle(w / 2 - width / 2, h - (h < 700 ? 119 : 138), width, w >= 900 ? 68 : 58); }
-  private galleryButton() { const w = this.viewWidth(), h = this.viewHeight(), width = Math.min(w >= 900 ? 170 : 155, w * .41); return new Phaser.Geom.Rectangle(w / 2 + 7, h < 700 ? h - 50 : h - 72, width, 44); }
+  private menuScale() { return this.viewHeight() / MENU_REFERENCE.height; }
+  private menuFooterShift() { const k = this.menuScale(); return Math.max(0, this.safeInset('bottom') + 12 - (this.viewHeight() - 1608 * k)); }
+  private menuRect(x: number, y: number, width: number, height: number, footer = false) {
+    const k = this.menuScale(), w = this.viewWidth();
+    const scaledWidth = Math.min(width * k, w - 12);
+    const scaledHeight = height * (scaledWidth / width);
+    return new Phaser.Geom.Rectangle(w / 2 + (x + width / 2 - MENU_REFERENCE.width / 2) * k - scaledWidth / 2,
+      (y + height / 2) * k - scaledHeight / 2 - (footer ? this.menuFooterShift() : 0), scaledWidth, scaledHeight);
+  }
+  private menuButton() { return this.menuRect(114, 1365, 710, 139, true); }
+  private galleryButton() { const r = this.menuRect(470, 1500, 334, 108, true); return new Phaser.Geom.Rectangle(r.x, r.y - Math.max(0, 44 - r.height) / 2, r.width, Math.max(44, r.height)); }
   private galleryCloseButton() { const w = this.viewWidth(); return new Phaser.Geom.Rectangle(w - (w >= 900 ? 132 : 102), w >= 900 ? 40 : 24, w >= 900 ? 112 : 92, 42); }
-  private levelsButton() { const w = this.viewWidth(), h = this.viewHeight(), width = Math.min(w >= 900 ? 170 : 155, w * .41); return new Phaser.Geom.Rectangle(w / 2 - width - 7, h < 700 ? h - 50 : h - 72, width, 44); }
+  private levelsButton() { const r = this.menuRect(137, 1500, 335, 108, true); return new Phaser.Geom.Rectangle(r.x, r.y - Math.max(0, 44 - r.height) / 2, r.width, Math.max(44, r.height)); }
   private nextButton() {
     const w = this.viewWidth();
     if (this.mode === 'complete') {
@@ -514,6 +532,12 @@ class PuzzleScene extends Phaser.Scene {
     else if (this.mode === 'view') this.drawGalleryView(w, h);
     else if (this.mode === 'complete') this.drawVictory(w, h);
     else this.drawGame(w, h);
+    if (this.mode !== 'game' || this.artLoaded) {
+      const changed = this.lastDrawMode !== null && this.lastDrawMode !== this.mode;
+      this.lastDrawMode = this.mode;
+      if (changed && this.mode !== 'complete' && !reducedMotion.matches)
+        this.cameras.main.fadeIn(220, 0, 0, 0);
+    }
   }
   private drawAtmosphere(w: number, h: number) {
     this.bg.fillStyle(0xffde9c, .35);
@@ -522,28 +546,32 @@ class PuzzleScene extends Phaser.Scene {
     for (let i = 0; i < 5; i++) this.bg.strokeCircle(w * (i % 2 ? .93 : .07), h * (.15 + i * .2), 32 + i * 11);
   }
   private drawMenu(w: number, h: number) {
-    const key = w >= 900 ? 'menu-storybook-wide' : 'menu-storybook';
+    const key = 'menu-alchemist';
     if (!this.menuArt || !this.menuArt.active || this.menuArt.texture.key !== key) {
       this.menuArt?.destroy(); this.menuArt = this.add.image(w / 2, h / 2, key).setDepth(1);
     }
     const source = this.textures.get(key).getSourceImage() as HTMLImageElement;
     const scale = Math.max(w / source.width, h / source.height);
     this.menuArt.setVisible(true).setPosition(w / 2, h / 2).setDisplaySize(source.width * scale, source.height * scale);
-    // A light vignette supports the lettering while the painted cottage remains visible.
-    this.boardG.fillGradientStyle(0x020813, 0x020813, 0x020813, 0x020813, .44, .44, 0, 0).fillRect(0, 0, w, h * .31);
-    this.boardG.fillGradientStyle(0x020813, 0x020813, 0x020813, 0x020813, 0, 0, .47, .47).fillRect(0, h * .76, w, h * .24);
-    const compact = h < 700, desktop = w >= 900;
-    const titleY = compact ? 92 : desktop ? 119 : 124;
-    this.txt(w / 2, titleY, 'Мистические', Math.min(desktop ? 65 : compact ? 36 : 43, w * .115), '#fff0c8', true);
-    this.txt(w / 2, titleY + (compact ? 47 : desktop ? 70 : 58), 'Пазлы', Math.min(desktop ? 86 : compact ? 53 : 65, w * .17), '#ffe4a2', true);
-    this.ornamentRule(w / 2, titleY + (compact ? 84 : desktop ? 126 : 108), desktop ? 192 : 130);
+    const title = this.menuRect(96, 66, 746, 473);
+    const titleSafeShift = Math.max(0, this.safeInset('top') + 8 - 96 * this.menuScale());
+    this.uiImages.push(this.add.image(title.centerX, title.centerY + titleSafeShift, 'menu-title').setDepth(105)
+      .setDisplaySize(title.width, title.height));
     this.drawSoundControls();
-    this.menuPlaque(this.menuButton(), 'Играть', 'plaque-gold', this.menuPressed ? 3 : 0);
-    this.secondaryButton(this.levelsButton(), 'Уровни');
-    this.secondaryButton(this.galleryButton(), 'Галерея');
-  }
-  private secondaryButton(rect: Phaser.Geom.Rectangle, label: string) {
-    this.menuPlaque(rect, label, 'plaque-navy');
+    const main = this.menuButton(), pressedY = this.menuPressed ? 3 : 0;
+    this.uiImages.push(this.add.image(main.centerX, main.centerY + pressedY, 'menu-button-gold')
+      .setDepth(110).setDisplaySize(main.width, main.height));
+    const next = nextUnplayed(this.progress);
+    const label = next > LEVELS.length ? 'Играть снова · уровень 1'
+      : next === 1 ? 'Играть · уровень 1' : `Продолжить · уровень ${next}`;
+    const mainLabel = this.txt(main.centerX, main.centerY + pressedY - 1, label,
+      Math.min(34, main.height * .44), '#3b210e', true, 'center', false);
+    while (mainLabel.width > main.width * .78 && Number.parseFloat(String(mainLabel.style.fontSize)) > 15)
+      mainLabel.setFontSize(Number.parseFloat(String(mainLabel.style.fontSize)) - 1);
+    for (const [rect, button] of [[this.levelsButton(), 'menu-button-levels'], [this.galleryButton(), 'menu-button-gallery']] as const) {
+      this.uiImages.push(this.add.image(rect.centerX, rect.centerY, button).setDepth(110)
+        .setDisplaySize(rect.width, this.menuScale() * 108));
+    }
   }
   private menuPlaque(rect: Phaser.Geom.Rectangle, label: string, key: 'plaque-gold' | 'plaque-navy', offsetY = 0) {
     const primary = key === 'plaque-gold';
@@ -555,13 +583,27 @@ class PuzzleScene extends Phaser.Scene {
   }
   private drawSoundControls() {
     const button = this.soundButton(), x = button.x, y = button.y;
-    this.iconCircle(x, y);
-    this.chrome.fillStyle(0xffe3a2, 1).fillRect(x - 12, y - 5, 5, 10);
-    this.chrome.fillStyle(0xffe3a2, 1).fillTriangle(x - 8, y - 5, x + 1, y - 12, x + 1, y + 12);
+    const gear = this.settingsButton();
+    for (const control of [button, gear]) {
+      this.chrome.fillStyle(0x06111e, .62).fillCircle(control.x, control.y, 20);
+      this.chrome.lineStyle(1, 0xf1cb84, .72).strokeCircle(control.x, control.y, 19);
+    }
+    this.chrome.fillStyle(0xffe3a2, 1).fillRect(x - 10, y - 4, 4, 8);
+    this.chrome.fillStyle(0xffe3a2, 1).fillTriangle(x - 6, y - 4, x + 1, y - 9, x + 1, y + 9);
     if (this.audio.settings.music || this.audio.settings.effects) {
-      this.chrome.lineStyle(2, 0xffe3a2, 1).beginPath().arc(x + 1, y, 9, -.8, .8).strokePath();
-      this.chrome.beginPath().arc(x + 1, y, 14, -.8, .8).strokePath();
-    } else this.chrome.lineStyle(2, 0xffe3a2, 1).lineBetween(x + 6, y - 9, x + 17, y + 9);
+      this.chrome.lineStyle(1.8, 0xffe3a2, 1).beginPath().arc(x + 1, y, 7, -.8, .8).strokePath();
+      this.chrome.beginPath().arc(x + 1, y, 11, -.8, .8).strokePath();
+    } else this.chrome.lineStyle(2, 0xffe3a2, 1).lineBetween(x + 5, y - 8, x + 15, y + 8);
+    const points: Phaser.Geom.Point[] = [];
+    for (let i = 0; i < 32; i++) {
+      const angle = -Math.PI / 2 + i * Math.PI / 16;
+      const radius = i % 4 === 0 || i % 4 === 1 ? 14 : 10;
+      points.push(new Phaser.Geom.Point(gear.x + Math.cos(angle) * radius, gear.y + Math.sin(angle) * radius));
+    }
+    this.chrome.fillStyle(0xe7bd79, 1).fillPoints(points, true);
+    this.chrome.lineStyle(1, 0xffe9bc, .9).strokePoints(points, true);
+    this.chrome.fillStyle(0x102735, 1).fillCircle(gear.x, gear.y, 5);
+    this.chrome.lineStyle(1, 0xffe8b1, .8).strokeCircle(gear.x, gear.y, 5);
     if (!this.soundPanelOpen) return;
     const panel = this.soundPanel();
     this.chrome.fillStyle(0x102734, .98).fillRoundedRect(panel.x, panel.y, panel.width, panel.height, 13);
@@ -994,12 +1036,15 @@ class PuzzleScene extends Phaser.Scene {
 
 const game = new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', backgroundColor: '#071326', antialias: true,
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: Math.round(window.innerWidth * RENDER_SCALE), height: Math.round(window.innerHeight * RENDER_SCALE) },
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: Math.round(Math.min(window.innerWidth, window.innerHeight * 9 / 16) * RENDER_SCALE),
+    height: Math.round(window.innerHeight * RENDER_SCALE) },
   input: { activePointers: 1, smoothFactor: 0 }, render: { pixelArt: false, roundPixels: false }, scene: [PuzzleScene],
 });
 
 function resizeGame() {
-  game.scale.setGameSize(Math.round(window.innerWidth * RENDER_SCALE), Math.round(window.innerHeight * RENDER_SCALE));
+  game.scale.setGameSize(Math.round(Math.min(window.innerWidth, window.innerHeight * 9 / 16) * RENDER_SCALE),
+    Math.round(window.innerHeight * RENDER_SCALE));
   game.scale.refresh();
 }
 window.addEventListener('resize', resizeGame);
