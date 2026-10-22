@@ -227,7 +227,7 @@ class PuzzleScene extends Phaser.Scene {
     const x = pointer.x / RENDER_SCALE, y = pointer.y / RENDER_SCALE;
     this.audio.unlock();
     if (this.mode === 'menu') {
-      if (this.soundButton().contains(x, y) || this.settingsButton().contains(x, y)) {
+      if (this.settingsButton().contains(x, y)) {
         this.soundPanelOpen = !this.soundPanelOpen; this.draw(); return;
       }
       if (this.soundPanelOpen) {
@@ -240,8 +240,7 @@ class PuzzleScene extends Phaser.Scene {
         this.menuPressed = true; this.draw();
         this.time.delayedCall(100, () => {
           this.menuPressed = false;
-          if (next > LEVELS.length) this.startGame(1);
-          else this.startGame(next);
+          this.startGame(next > LEVELS.length ? 1 : next);
         });
       } else if (this.levelsButton().contains(x, y)) { this.mode = 'levels'; this.draw(); }
       else if (this.galleryButton().contains(x, y)) { this.mode = 'gallery'; this.draw(); }
@@ -421,7 +420,6 @@ class PuzzleScene extends Phaser.Scene {
     for (const id of pieceIds) { if (this.textures.exists(`piece-clean-${id}`)) this.textures.remove(`piece-clean-${id}`); if (this.textures.exists(`piece-loose-${id}`)) this.textures.remove(`piece-loose-${id}`); }
     if (this.textures.exists('whole-picture')) this.textures.remove('whole-picture');
   }
-  private soundButton() { return new Phaser.Geom.Circle(this.viewWidth() - 79, this.safeInset('top') + 29, 23); }
   private settingsButton() { return new Phaser.Geom.Circle(this.viewWidth() - 29, this.safeInset('top') + 29, 23); }
   private soundPanel() { const w = this.viewWidth(), y = Math.max(this.settingsButton().y + 30, 539 * this.menuScale() + 8), width = Math.min(244, w - 24); return new Phaser.Geom.Rectangle(w - width - 12, y, width, 119); }
   private musicButton() { const r = this.soundPanel(); return new Phaser.Geom.Rectangle(r.x + 8, r.y + 9, r.width - 16, 50); }
@@ -557,17 +555,12 @@ class PuzzleScene extends Phaser.Scene {
     const titleSafeShift = Math.max(0, this.safeInset('top') + 8 - 96 * this.menuScale());
     this.uiImages.push(this.add.image(title.centerX, title.centerY + titleSafeShift, 'menu-title').setDepth(105)
       .setDisplaySize(title.width, title.height));
-    this.drawSoundControls();
+    this.drawSettingsControls();
     const main = this.menuButton(), pressedY = this.menuPressed ? 3 : 0;
     this.uiImages.push(this.add.image(main.centerX, main.centerY + pressedY, 'menu-button-gold')
       .setDepth(110).setDisplaySize(main.width, main.height));
-    const next = nextUnplayed(this.progress);
-    const label = next > LEVELS.length ? 'Играть снова · уровень 1'
-      : next === 1 ? 'Играть · уровень 1' : `Продолжить · уровень ${next}`;
-    const mainLabel = this.txt(main.centerX, main.centerY + pressedY - 1, label,
-      Math.min(34, main.height * .44), '#3b210e', true, 'center', false);
-    while (mainLabel.width > main.width * .78 && Number.parseFloat(String(mainLabel.style.fontSize)) > 15)
-      mainLabel.setFontSize(Number.parseFloat(String(mainLabel.style.fontSize)) - 1);
+    this.txt(main.centerX, main.centerY + pressedY - 1, 'Играть',
+      Math.min(43, main.height * .6), '#3b210e', true, 'center', false);
     for (const [rect, button] of [[this.levelsButton(), 'menu-button-levels'], [this.galleryButton(), 'menu-button-gallery']] as const) {
       this.uiImages.push(this.add.image(rect.centerX, rect.centerY, button).setDepth(110)
         .setDisplaySize(rect.width, this.menuScale() * 108));
@@ -581,19 +574,10 @@ class PuzzleScene extends Phaser.Scene {
     this.txt(rect.centerX, rect.centerY + offsetY - 1, label, primary ? Math.min(26, rect.height * .43) : 16,
       primary ? '#382113' : '#ffe3aa', true, 'center', !primary);
   }
-  private drawSoundControls() {
-    const button = this.soundButton(), x = button.x, y = button.y;
+  private drawSettingsControls() {
     const gear = this.settingsButton();
-    for (const control of [button, gear]) {
-      this.chrome.fillStyle(0x06111e, .62).fillCircle(control.x, control.y, 20);
-      this.chrome.lineStyle(1, 0xf1cb84, .72).strokeCircle(control.x, control.y, 19);
-    }
-    this.chrome.fillStyle(0xffe3a2, 1).fillRect(x - 10, y - 4, 4, 8);
-    this.chrome.fillStyle(0xffe3a2, 1).fillTriangle(x - 6, y - 4, x + 1, y - 9, x + 1, y + 9);
-    if (this.audio.settings.music || this.audio.settings.effects) {
-      this.chrome.lineStyle(1.8, 0xffe3a2, 1).beginPath().arc(x + 1, y, 7, -.8, .8).strokePath();
-      this.chrome.beginPath().arc(x + 1, y, 11, -.8, .8).strokePath();
-    } else this.chrome.lineStyle(2, 0xffe3a2, 1).lineBetween(x + 5, y - 8, x + 15, y + 8);
+    this.chrome.fillStyle(0x06111e, .62).fillCircle(gear.x, gear.y, 20);
+    this.chrome.lineStyle(1, 0xf1cb84, .72).strokeCircle(gear.x, gear.y, 19);
     const points: Phaser.Geom.Point[] = [];
     for (let i = 0; i < 32; i++) {
       const angle = -Math.PI / 2 + i * Math.PI / 16;

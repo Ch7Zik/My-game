@@ -1,0 +1,38 @@
+[
+  {
+    "size": "375x667",
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "width": 375,
+      "height": 667
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  },
+  {
+    "size": "390x844",
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 844
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  },
+  {
+    "size": "1920x1080",
+    "canvas": {
+      "x": 656,
+      "y": 0,
+      "width": 608,
+      "height": 1080
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  }
+]
