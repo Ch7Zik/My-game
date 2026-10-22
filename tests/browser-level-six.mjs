@@ -19,9 +19,19 @@ async function waitForServer() {
   throw new Error('Vite did not start');
 }
 
+async function screenPoint(page, point) {
+  return page.evaluate(({ x, y }) => {
+    const scene = window.__mysticGame.scene.getScene('puzzle');
+    const frame = document.querySelector('#game canvas').getBoundingClientRect();
+    return { x: frame.left + x * frame.width / scene.viewWidth(),
+      y: frame.top + y * frame.height / scene.viewHeight() };
+  }, point);
+}
+
 async function click(page, mobile, x, y) {
-  if (mobile) await page.touchscreen.tap(x, y);
-  else await page.mouse.click(x, y);
+  const point = await screenPoint(page, { x, y });
+  if (mobile) await page.touchscreen.tap(point.x, point.y);
+  else await page.mouse.click(point.x, point.y);
 }
 
 async function card(page, index) {
@@ -40,7 +50,8 @@ async function openLevelSix(page, mobile, height, captureLevels = true) {
   await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'levels');
   let sixth = await card(page, 5);
   if (sixth.top < 70 || sixth.bottom > height - 10) {
-    await page.mouse.move(sixth.x, height / 2);
+    const point = await screenPoint(page, { x: sixth.x, y: height / 2 });
+    await page.mouse.move(point.x, point.y);
     await page.mouse.wheel(0, 800);
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').levelScrollRow > 0);
     sixth = await card(page, 5);
@@ -94,7 +105,7 @@ async function assertLayersAndAccess(page) {
 }
 
 async function assertPlacedDoesNotCapture(page, cdp) {
-  const point = await page.evaluate(() => {
+  const scenePoint = await page.evaluate(() => {
     const s = window.__mysticGame.scene.getScene('puzzle');
     for (const p of s.pieces.filter(item => item.placed)) {
       for (let y = p.sprite.y - p.sprite.displayHeight / 2 + 6; y < p.sprite.y + p.sprite.displayHeight / 2 - 6; y += 5)
@@ -104,6 +115,7 @@ async function assertPlacedDoesNotCapture(page, cdp) {
     }
     throw new Error('No exposed placed-piece point to test');
   });
+  const point = await screenPoint(page, scenePoint);
   if (cdp) {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...point, id: 1 }] });
     assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').dragging), null);
@@ -115,7 +127,10 @@ async function assertPlacedDoesNotCapture(page, cdp) {
 }
 
 async function drag(page, cdp, id) {
-  const { start, target, sprite } = await pickup(page, id);
+  const picked = await pickup(page, id);
+  const { sprite } = picked;
+  const start = await screenPoint(page, picked.start);
+  const target = await screenPoint(page, picked.target);
   if (cdp) {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...start, id: 1 }] });
     assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').dragging?.id), id);
@@ -181,12 +196,13 @@ async function runSize(browser, width, height) {
     assert.ok(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').hintPiece?.id >= 0));
     const cdp = mobile ? await context.newCDPSession(page) : null;
     const released = await pickup(page, 11);
+    const releasedScreen = await screenPoint(page, released.start);
     if (cdp) {
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...released.start, id: 1 }] });
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...releasedScreen, id: 1 }] });
       assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').dragging?.id), 11);
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     } else {
-      await page.mouse.move(released.start.x, released.start.y);
+      await page.mouse.move(releasedScreen.x, releasedScreen.y);
       await page.mouse.down();
       assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').dragging?.id), 11);
       await page.mouse.up();

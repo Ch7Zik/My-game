@@ -11,6 +11,15 @@ const captures = process.env.TASK23_SCREENSHOT_DIR;
 assert.ok(selectedSizes.length && variants.every(count => [12, 16, 20].includes(count)));
 if (captures) mkdirSync(captures, { recursive: true });
 
+async function screenPoint(page, point) {
+  return page.evaluate(({ x, y }) => {
+    const scene = window.__mysticGame.scene.getScene('puzzle');
+    const frame = document.querySelector('#game canvas').getBoundingClientRect();
+    return { x: frame.left + x * frame.width / scene.viewWidth(),
+      y: frame.top + y * frame.height / scene.viewHeight() };
+  }, point);
+}
+
 async function waitForServer() {
   for (let attempt = 0; attempt < 100; attempt++) {
     try { if ((await fetch(base)).ok) return; } catch { /* Starting. */ }
@@ -52,7 +61,10 @@ async function assertAvailable(page, checkPickups = false) {
 }
 
 async function drag(page, cdp, id) {
-  const { start, target, origin } = await pickup(page, id);
+  const picked = await pickup(page, id);
+  const { origin } = picked;
+  const start = await screenPoint(page, picked.start);
+  const target = await screenPoint(page, picked.target);
   if (cdp) {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...start, id: 1 }] });
     assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').dragging?.id), id);
@@ -116,7 +128,8 @@ async function runSize(browser, count, width, height) {
     await assertAvailable(page, true);
     if (capture) await page.screenshot({ path: `${captures}/start-${prefix}.png`, timeout: 120000 });
     const hint = await page.evaluate(() => { const b = window.__mysticGame.scene.getScene('puzzle').hintButton(); return { x: b.x, y: b.y }; });
-    if (mobile) await page.touchscreen.tap(hint.x, hint.y); else await page.mouse.click(hint.x, hint.y);
+    const hintScreen = await screenPoint(page, hint);
+    if (mobile) await page.touchscreen.tap(hintScreen.x, hintScreen.y); else await page.mouse.click(hintScreen.x, hintScreen.y);
     assert.ok(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').hintPiece?.id >= 0));
     const cdp = mobile ? await context.newCDPSession(page) : null;
     const ids = orderFor(count);
@@ -146,7 +159,8 @@ async function runSize(browser, count, width, height) {
       await page.screenshot({ path: `${captures}/assembled-${prefix}.png`, clip: won.picture, timeout: 120000 });
     }
     const next = { x: won.next.x + won.next.width / 2, y: won.next.y + won.next.height / 2 };
-    if (mobile) await page.touchscreen.tap(next.x, next.y); else await page.mouse.click(next.x, next.y);
+    const nextScreen = await screenPoint(page, next);
+    if (mobile) await page.touchscreen.tap(nextScreen.x, nextScreen.y); else await page.mouse.click(nextScreen.x, nextScreen.y);
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'gallery');
     assert.ok(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').progress.completed.includes(6)));
     if (width === 390) {

@@ -1,0 +1,122 @@
+[
+  {
+    "size": "360x640",
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "width": 360,
+      "height": 640
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  },
+  {
+    "size": "375x667",
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "width": 375,
+      "height": 667
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  },
+  {
+    "size": "390x844",
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 844
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  },
+  {
+    "size": "393x852",
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "width": 393,
+      "height": 852
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  },
+  {
+    "size": "430x932",
+    "canvas": {
+      "x": 0,
+      "y": 0,
+      "width": 430,
+      "height": 932
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  },
+  {
+    "size": "1366x768",
+    "canvas": {
+      "x": 467,
+      "y": 0,
+      "width": 432,
+      "height": 768
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  },
+  {
+    "size": "1920x1080",
+    "canvas": {
+      "x": 656,
+      "y": 0,
+      "width": 608,
+      "height": 1080
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  },
+  {
+    "size": "2560x1440",
+    "canvas": {
+      "x": 875,
+      "y": 0,
+      "width": 810,
+      "height": 1440
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  },
+  {
+    "size": "768x1024",
+    "canvas": {
+      "x": 96,
+      "y": 0,
+      "width": 576,
+      "height": 1024
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  },
+  {
+    "size": "1024x768",
+    "canvas": {
+      "x": 296,
+      "y": 0,
+      "width": 432,
+      "height": 768
+    },
+    "settingsPersisted": true,
+    "navigation": true,
+    "errors": []
+  }
+]
