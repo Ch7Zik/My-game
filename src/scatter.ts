@@ -54,7 +54,8 @@ export function scatterPieces(pieces: readonly LoosePieceSize[], board: Rect, se
     }
     const positions = order.map(index => slots[index]);
     const q = assessScatter(pieces, board, positions);
-    const crowding = pieces.length >= 14 ? 2 : 1;
+    // Denser collection levels need more exposed art at their resting positions.
+    const crowding = pieces.length === 14 || pieces.length === 15 ? 2 : 1;
     const score = q.minDistance * 8 + q.meanDistance * 3 - q.totalOverlap * 8 * crowding - q.maxOverlap * 12 * crowding
       - Math.max(0, .44 - q.minDistance) * 250;
     if (score > bestScore) { bestScore = score; best = positions; }

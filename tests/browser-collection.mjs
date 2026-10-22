@@ -8,7 +8,7 @@ const base = `http://127.0.0.1:${port}/`;
 const allSizes = [[375, 667], [390, 844], [1920, 1080]];
 const maxLevel = Number(process.env.COLLECTION_MAX_LEVEL || 5);
 const firstLevel = Number(process.env.COLLECTION_FIRST_LEVEL || 1);
-const output = maxLevel > 5 ? 'docs/screenshots/levels-06-10' : 'docs/screenshots/levels-01-05';
+const output = process.env.COLLECTION_OUTPUT || (maxLevel > 5 ? 'docs/screenshots/levels-06-10' : 'docs/screenshots/levels-01-05');
 const counts = [10, 11, 12, 12, 12, 14, 14, 15, 15, 15];
 const titles = ['Эликсир забвения', 'Колодец забытых имён', 'Часовня забытых', 'Зеркало ворона',
   'Винтовая башня', 'Хранитель библиотеки', 'Печать крови', 'Туманный сад',
