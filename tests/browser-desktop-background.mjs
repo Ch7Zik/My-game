@@ -64,6 +64,15 @@ async function runSize(browser, width, height) {
     }
     if (height < 600) return { size: `${width}x${height}`, backgroundRequests: backgroundRequests.length, canvas: layout.canvas };
     await page.screenshot({ path: `${output}/menu-${width}x${height}.png` });
+    assert.ok(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').children.list
+      .some(child => child.getData('uiText') && child.text === 'Играть')));
+    await clickControl(page, 'settingsButton', touch);
+    assert.ok(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').soundPanelOpen));
+    await clickControl(page, 'musicButton', touch);
+    await clickControl(page, 'effectsButton', touch);
+    assert.deepEqual(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').audio.settings),
+      { music: false, effects: false });
+    await clickControl(page, 'settingsButton', touch);
     await clickControl(page, 'levelsButton', touch);
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'levels');
     if (!touch) await page.screenshot({ path: `${output}/levels-${width}x${height}.png` });

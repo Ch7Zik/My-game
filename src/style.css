@@ -7,7 +7,7 @@ canvas { display: block; touch-action: none; }
 
 @media (min-width: 900px) and (min-height: 600px) and (orientation: landscape) {
   body {
-    background-image: linear-gradient(rgba(3, 10, 20, .32), rgba(3, 10, 20, .32)), url('./assets/desktop-cave.webp');
+    background-image: linear-gradient(rgba(3, 10, 20, .12), rgba(3, 10, 20, .12)), url('./assets/desktop-cave.webp');
     background-size: cover, cover;
     background-position: center, center;
     background-repeat: no-repeat, no-repeat;
