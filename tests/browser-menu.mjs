@@ -84,9 +84,21 @@ async function runSize(browser, width, height) {
       { music: false, effects: false });
     await clickControl(page, 'levelsButton');
     assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').mode), 'levels');
+    assert.ok(await page.evaluate(title => window.__mysticGame.scene.getScene('puzzle').children.list
+      .some(child => child.getData('uiText') && child.text === title), LEVELS[0].title));
+    for (let row = 0; row < 4; row++) await page.mouse.wheel(0, 600);
+    await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').levelScrollRow > 0);
+    assert.ok(await page.evaluate(title => window.__mysticGame.scene.getScene('puzzle').children.list
+      .some(child => child.getData('uiText') && child.text === title), LEVELS[9].title));
+    if ([[375, 667], [390, 844], [1920, 1080]].some(([w, h]) => w === width && h === height))
+      await page.screenshot({ path: `${output}/levels-${width}x${height}.png` });
     await clickControl(page, 'backButton');
     await clickControl(page, 'galleryButton');
     assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').mode), 'gallery');
+    for (let row = 0; row < 4; row++) await page.mouse.wheel(0, 600);
+    await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').galleryScrollRow >= 3);
+    assert.ok(await page.evaluate(title => window.__mysticGame.scene.getScene('puzzle').children.list
+      .some(child => child.getData('uiText') && child.text === title), LEVELS[9].title));
     await clickControl(page, 'backButton');
     await clickControl(page, 'menuButton');
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 10);

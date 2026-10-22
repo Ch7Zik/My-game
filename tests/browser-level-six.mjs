@@ -60,7 +60,7 @@ async function openLevelSix(page, mobile, height, captureLevels = true) {
   if (captures && captureLevels) await page.screenshot({ path: `${captures}/levels-${page.viewportSize().width}x${height}.png`, timeout: 120000 });
   await click(page, mobile, sixth.x, sixth.y);
   await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'game' &&
-    window.__mysticGame.scene.getScene('puzzle').pieces.length === 12);
+    window.__mysticGame.scene.getScene('puzzle').pieces.length === 14);
 }
 
 async function pickup(page, id) {
@@ -186,8 +186,8 @@ async function runSize(browser, width, height) {
       return { ids: s.pieces.map(p => p.id), title: s.level.title, board: s.board,
         textures: s.pieces.every(p => p.sprite.texture.key === `piece-loose-${p.id}`) };
     });
-    assert.deepEqual([...initial.ids].sort((a, b) => a - b), Array.from({ length: 12 }, (_, i) => i));
-    assert.equal(initial.title, 'Заколдованная библиотека');
+    assert.deepEqual([...initial.ids].sort((a, b) => a - b), Array.from({ length: 14 }, (_, i) => i));
+    assert.equal(initial.title, 'Хранитель библиотеки');
     assert.ok(initial.textures);
     await assertLayersAndAccess(page);
     if (captures) await page.screenshot({ path: `${captures}/start-${width}x${height}.png`, timeout: 120000 });
@@ -212,7 +212,7 @@ async function runSize(browser, width, height) {
       return !p.placed && p.sprite.depth > s.guideImage.depth && p.sprite.depth < 50;
     }));
     await assertLayersAndAccess(page);
-    for (let index = 11; index >= 0; index--) {
+    for (let index = 13; index >= 0; index--) {
       await drag(page, cdp, index);
       if (index === 6 && captures) await page.screenshot({ path: `${captures}/partial-${width}x${height}.png`, timeout: 120000 });
       if (index > 0) await assertLayersAndAccess(page);
@@ -232,14 +232,14 @@ async function runSize(browser, width, height) {
       const s = window.__mysticGame.scene.getScene('puzzle');
       return { elapsedMs: s.completedMs, result: s.results[6], completed: s.progress.completed,
         image: s.completeImage?.getBounds(), picture: s.victoryScreenLayout().picture,
-        button: { x: s.nextButton().centerX, y: s.nextButton().centerY },
+        button: { x: s.hintButton().x, y: s.hintButton().y },
         labels: s.children.list.filter(c => c.getData('uiText')).map(c => c.text),
         scrollWidth: document.documentElement.scrollWidth };
     });
     assert.ok(won.elapsedMs > 0 && won.result.stars >= 1 && won.result.stars <= 3);
     assert.ok(won.completed.includes(6));
     assert.equal(won.scrollWidth, width);
-    assert.ok(won.labels.includes('Картина собрана!') && won.labels.includes('В галерею'));
+    assert.ok(won.labels.includes('Картина собрана!') && won.labels.includes('Далее'));
     assert.ok(Math.abs(won.image.width - won.picture.width) < 1 &&
       Math.abs(won.image.height - won.picture.height) < 1);
     if (captures) {
@@ -274,9 +274,9 @@ async function runSize(browser, width, height) {
     if (width === 390) {
       await openLevelSix(page, mobile, height, false);
       const replayCdp = await context.newCDPSession(page);
-      for (let id = 0; id < 12; id++) {
+      for (let id = 0; id < 14; id++) {
         await drag(page, replayCdp, id);
-        if (id < 11) await assertLayersAndAccess(page);
+        if (id < 13) await assertLayersAndAccess(page);
       }
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'complete');
       const replay = await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
