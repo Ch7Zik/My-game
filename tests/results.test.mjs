@@ -4,9 +4,9 @@ import { freshProgress, completeLevel, restoreProgress, saveProgress } from '../
 import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay, starsForTime, STAR_THRESHOLDS_SECONDS, RESULTS_KEY } from '../src/results.ts';
 import { gameLayout } from '../src/layout.ts';
 
-test('configurable star times respect existing piece counts and have no failure state', () => {
-  for (const pieces of [4, 6, 8, 12]) {
-    const { three, two } = STAR_THRESHOLDS_SECONDS[pieces];
+test('configurable star times respect existing timing brackets and have no failure state', () => {
+  for (const pieces of [4, 6, 8, 10, 11, 12]) {
+    const { three, two } = STAR_THRESHOLDS_SECONDS[pieces >= 10 ? 12 : pieces];
     assert.ok(two > three);
     assert.equal(starsForTime(pieces, three * 1000), 3);
     assert.equal(starsForTime(pieces, three * 1000 + 1), 2);
@@ -17,12 +17,12 @@ test('configurable star times respect existing piece counts and have no failure 
 });
 
 test('replays keep fastest time and highest star count independently', () => {
-  let results = recordResult({}, 1, 200000);
-  assert.deepEqual(results[1], { bestMs: 200000, stars: 1 });
-  results = recordResult(results, 1, 100000);
-  assert.deepEqual(results[1], { bestMs: 100000, stars: 2 });
-  results = recordResult(results, 1, 220000);
-  assert.deepEqual(results[1], { bestMs: 100000, stars: 2 });
+  let results = recordResult({}, 1, 800000);
+  assert.deepEqual(results[1], { bestMs: 800000, stars: 1 });
+  results = recordResult(results, 1, 500000);
+  assert.deepEqual(results[1], { bestMs: 500000, stars: 2 });
+  results = recordResult(results, 1, 900000);
+  assert.deepEqual(results[1], { bestMs: 500000, stars: 2 });
   results = recordResult(results, 1, 50000);
   assert.deepEqual(results[1], { bestMs: 50000, stars: 3 });
   assert.equal(recordResult(results, 99, 1000), results);

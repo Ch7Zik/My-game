@@ -287,7 +287,7 @@ async function runSize(browser, width, height) {
       // The same depth policy must survive every older level, including replay.
       for (let level = 1; level <= 5; level++) {
         await page.evaluate(id => window.__mysticGame.scene.getScene('puzzle').startGame(id), level);
-        const count = [4, 4, 6, 6, 8][level - 1];
+        const count = [10, 11, 12, 12, 12][level - 1];
         await page.waitForFunction(expected => window.__mysticGame.scene.getScene('puzzle').pieces.length === expected, count);
         await assertLayersAndAccess(page);
         for (let id = 0; id < count; id++) {

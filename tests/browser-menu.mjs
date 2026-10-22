@@ -89,7 +89,7 @@ async function runSize(browser, width, height) {
     assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').mode), 'gallery');
     await clickControl(page, 'backButton');
     await clickControl(page, 'menuButton');
-    await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 4);
+    await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 10);
     await clickControl(page, 'backButton');
     assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').mode), 'levels');
     await clickControl(page, 'backButton');

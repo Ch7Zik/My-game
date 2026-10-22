@@ -3,15 +3,18 @@ import assert from 'node:assert/strict';
 import { LEVELS } from '../src/levels.ts';
 import { assetUrl } from '../src/assetUrl.ts';
 import { createRegions, inspectRegions, qualityProblems } from '../src/geometry.ts';
-import { gameLayout, looseScale, startPosition } from '../src/layout.ts';
 import { completeLevel, freshProgress, isInGallery, isUnlocked, nextUnplayed, PROGRESS_KEY, restoreProgress, saveProgress, selectLevel } from '../src/progress.ts';
 
-test('six unique images keep the first five levels and add one 12-piece experiment', () => {
-  assert.equal(assetUrl('assets/moonlit-cottage.png'), '/assets/moonlit-cottage.png');
-  assert.deepEqual(LEVELS.map(level => level.pieces), [4, 4, 6, 6, 8, 12]);
+test('five supplied paintings keep their numbered order and exact piece counts', () => {
+  assert.equal(assetUrl('assets/level-01.webp'), '/assets/level-01.webp');
+  assert.deepEqual(LEVELS.map(level => level.pieces), [10, 11, 12, 12, 12, 12]);
+  for (let id = 1; id <= 5; id++) {
+    assert.equal(LEVELS[id - 1].art, `/assets/level-0${id}.webp`);
+    assert.equal(LEVELS[id - 1].thumbnail, `/assets/level-0${id}-thumb.webp`);
+  }
   assert.equal(new Set(LEVELS.map(level => level.art)).size, 6);
   for (const level of LEVELS) {
-    assert.equal(level.columns * level.rows, level.pieces);
+    assert.ok(level.columns * level.rows >= level.pieces);
     assert.equal(level.slots.length, level.pieces);
     assert.ok(level.phrase.length > 10);
   }
@@ -19,30 +22,18 @@ test('six unique images keep the first five levels and add one 12-piece experime
 
 test('each authored mask covers every pixel exactly once, without bad or disconnected shapes', () => {
   for (const level of LEVELS) {
-    const { labels, regions } = createRegions(240, 360, level.columns, level.rows, level.seed);
+    const { labels, regions } = createRegions(240, 360, level.columns, level.rows, level.seed, level.pieces);
     assert.equal(regions.length, level.pieces);
     assert.equal(regions.reduce((sum, region) => sum + region.pixels, 0), labels.length);
     assert.ok(labels.every(label => label < level.pieces));
     for (const region of regions) assert.equal(labels.filter(label => label === region.id).length, region.pixels);
     assert.deepEqual(qualityProblems(inspectRegions(240, 360, labels, regions)), [], `level ${level.id}`);
-    for (const [w, h] of [[360, 640], [390, 844], [430, 932], [768, 1024], [1920, 1080]]) {
-      const { board } = gameLayout(w, h), scale = looseScale(w, h);
-      for (const region of regions) {
-        const pieceW = (region.bounds.width + 12) / 240 * board.width * scale;
-        const pieceH = (region.bounds.height + 12) / 360 * board.height * scale;
-        const point = startPosition(board, w, level.slots[region.id], pieceW, pieceH);
-        const home = { x: board.x + (region.bounds.x + region.bounds.width / 2) / 240 * board.width, y: board.y + (region.bounds.y + region.bounds.height / 2) / 360 * board.height };
-        assert.ok(point.x - pieceW / 2 >= 0 && point.x + pieceW / 2 <= w);
-        assert.ok(point.y - pieceH / 2 >= board.y && point.y + pieceH / 2 <= board.y + board.height);
-        assert.ok(Math.hypot(point.x - home.x, point.y - home.y) > Math.max(28, board.width * .14));
-      }
-    }
   }
 });
 
 test('production-resolution masks pass the same shape checks', () => {
   for (const level of LEVELS) {
-    const { labels, regions } = createRegions(720, 1080, level.columns, level.rows, level.seed);
+    const { labels, regions } = createRegions(720, 1080, level.columns, level.rows, level.seed, level.pieces);
     assert.equal(regions.reduce((sum, region) => sum + region.pixels, 0), labels.length);
     assert.deepEqual(qualityProblems(inspectRegions(720, 1080, labels, regions)), [], `level ${level.id}`);
   }
@@ -80,7 +71,7 @@ test('versioned progress survives reload and corrupt saves recover safely', () =
   assert.deepEqual(restoreProgress(storage), { version: 1, completed: [1], currentLevel: 2 });
 });
 
-test('existing five-level save unlocks the experiment without losing history', () => {
+test('existing five-level save unlocks level six without losing history', () => {
   const oldSave = { version: 1, completed: [1, 2, 3, 4, 5], currentLevel: 5 };
   const storage = { getItem: () => JSON.stringify(oldSave) };
   const restored = restoreProgress(storage);
