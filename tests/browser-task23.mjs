@@ -8,7 +8,7 @@ const sizes = [[360, 640], [375, 667], [390, 844], [393, 852], [430, 932], [1920
 const selectedSizes = process.env.TASK23_SIZES ? sizes.filter(([w, h]) => process.env.TASK23_SIZES.split(',').includes(`${w}x${h}`)) : sizes;
 const variants = process.env.TASK23_VARIANTS ? process.env.TASK23_VARIANTS.split(',').map(Number) : [16, 20];
 const captures = process.env.TASK23_SCREENSHOT_DIR;
-assert.ok(selectedSizes.length && variants.every(count => [12, 16, 20].includes(count)));
+assert.ok(selectedSizes.length && variants.every(count => [14, 16, 20].includes(count)));
 if (captures) mkdirSync(captures, { recursive: true });
 
 async function screenPoint(page, point) {
@@ -109,8 +109,8 @@ async function runSize(browser, count, width, height) {
   const capture = captures && [360, 390, 1920].includes(width);
   const prefix = `${count}-${width}x${height}`;
   try {
-    await page.goto(count === 12 ? base : `${base}?devPieces=${count}`);
-    if (count === 12) {
+    await page.goto(count === 14 ? base : `${base}?devPieces=${count}`);
+    if (count === 14) {
       await page.waitForFunction(() => window.__mysticGame?.scene?.getScene('puzzle')?.menuArt?.active);
       await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').startGame(6));
     }

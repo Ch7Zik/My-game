@@ -5,11 +5,15 @@ import { chromium } from 'playwright';
 
 const port = Number(process.env.COLLECTION_PORT || 4187);
 const base = `http://127.0.0.1:${port}/`;
-const output = 'docs/screenshots/levels-01-05';
 const allSizes = [[375, 667], [390, 844], [1920, 1080]];
 const maxLevel = Number(process.env.COLLECTION_MAX_LEVEL || 5);
 const firstLevel = Number(process.env.COLLECTION_FIRST_LEVEL || 1);
-assert.ok(Number.isInteger(maxLevel) && Number.isInteger(firstLevel) && firstLevel >= 1 && firstLevel <= maxLevel && maxLevel <= 5);
+const output = maxLevel > 5 ? 'docs/screenshots/levels-06-10' : 'docs/screenshots/levels-01-05';
+const counts = [10, 11, 12, 12, 12, 14, 14, 15, 15, 15];
+const titles = ['Эликсир забвения', 'Колодец забытых имён', 'Часовня забытых', 'Зеркало ворона',
+  'Винтовая башня', 'Хранитель библиотеки', 'Печать крови', 'Туманный сад',
+  'Песочные часы вечности', 'Ледяная часовня'];
+assert.ok(Number.isInteger(maxLevel) && Number.isInteger(firstLevel) && firstLevel >= 1 && firstLevel <= maxLevel && maxLevel <= 10);
 const sizes = process.env.COLLECTION_SIZES ? allSizes.filter(([w, h]) =>
   process.env.COLLECTION_SIZES.split(',').includes(`${w}x${h}`)) : allSizes;
 assert.ok(sizes.length);
@@ -99,7 +103,7 @@ async function runSize(browser, width, height) {
   page.on('pageerror', error => errors.push(error.message));
   page.on('response', response => {
     if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`);
-    if (/level-0[1-5]\.webp$/.test(new URL(response.url()).pathname)) fullRequests.push(response.url());
+    if (/level-(?:0[1-9]|10)\.webp$/.test(new URL(response.url()).pathname)) fullRequests.push(response.url());
   });
   try {
     await page.goto(base);
@@ -111,7 +115,6 @@ async function runSize(browser, width, height) {
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
     await clickControl(page, 'menuButton', mobile);
     const cdp = mobile ? await context.newCDPSession(page) : null;
-    const counts = [10, 11, 12, 12, 12];
     for (let level = firstLevel; level <= maxLevel; level++) {
       console.log(`Checking ${width}x${height} level ${level}`);
       await page.waitForFunction(({ level, count }) => { const scene = window.__mysticGame.scene.getScene('puzzle');
@@ -120,10 +123,10 @@ async function runSize(browser, width, height) {
       const state = await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
         return { art: s.level.art, title: s.level.title, count: s.pieces.length,
           loaded: s.art.complete && s.art.naturalWidth > 0 }; });
-      assert.equal(state.art, `/assets/level-0${level}.webp`);
-      assert.equal(state.title, `Картина ${level}`);
+      assert.equal(state.art, `/assets/level-${String(level).padStart(2, '0')}.webp`);
+      assert.equal(state.title, titles[level - 1]);
       assert.ok(state.loaded);
-      await capture(page, `level-0${level}-start-${width}x${height}`);
+      await capture(page, `level-${String(level).padStart(2, '0')}-start-${width}x${height}`);
       for (let id = counts[level - 1] - 1; id >= 0; id--) {
         console.log(`  piece ${id}`);
         await drag(page, cdp, id);
@@ -134,19 +137,32 @@ async function runSize(browser, width, height) {
         return { completed: s.progress.completed, result: s.results[s.level.id], image: s.completeImage?.texture.key }; });
       assert.deepEqual(victory.completed, Array.from({ length: level }, (_, i) => i + 1));
       assert.ok(victory.result?.stars >= 1 && victory.image === 'whole-picture');
-      await capture(page, `level-0${level}-complete-${width}x${height}`);
-      if (level < maxLevel || maxLevel === 5) await clickControl(page, 'nextButton', mobile);
+      await capture(page, `level-${String(level).padStart(2, '0')}-complete-${width}x${height}`);
+      if (level < maxLevel) await clickControl(page, 'nextButton', mobile);
     }
-    if (maxLevel < 5) {
-      assert.deepEqual(errors, []);
-      return { size: `${width}x${height}`, levels: counts.slice(firstLevel - 1, maxLevel), fullRequests: fullRequests.length, errors };
+    assert.equal(fullRequests.length, maxLevel - firstLevel + 1, 'each played full-size art should load only when needed');
+    await clickControl(page, 'nextButton', mobile);
+    if (maxLevel < 10) await page.waitForFunction(next => { const s = window.__mysticGame.scene.getScene('puzzle');
+      return s.mode === 'game' && s.level.id === next; }, maxLevel + 1);
+    else {
+      await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'gallery');
+      for (let row = 0; row < 4; row++) await page.mouse.wheel(0, 600);
+      await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').galleryScrollRow >= 3);
+      await capture(page, `gallery-completed-${width}x${height}`);
+      const lastCard = await page.evaluate(() => { const r = window.__mysticGame.scene.getScene('puzzle').cardRects()[9];
+        return { x: r.centerX, y: r.centerY }; });
+      const lastPoint = await screenPoint(page, lastCard);
+      if (mobile) await page.touchscreen.tap(lastPoint.x, lastPoint.y);
+      else await page.mouse.click(lastPoint.x, lastPoint.y);
+      await page.waitForFunction(() => { const s = window.__mysticGame.scene.getScene('puzzle');
+        return s.mode === 'view' && s.viewedLevel === 10 && s.textures.exists('full-art-10'); });
+      await capture(page, `gallery-level-10-${width}x${height}`);
     }
-    await page.waitForFunction(() => { const s = window.__mysticGame.scene.getScene('puzzle');
-      return s.mode === 'game' && s.level.id === 6 && s.pieces.length === 12; });
-    assert.equal(fullRequests.length, 6 - firstLevel, 'each played full-size art should load only when needed');
     await page.reload();
     await page.waitForFunction(() => window.__mysticGame?.scene?.getScene('puzzle')?.menuArt?.active);
-    assert.deepEqual(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').progress.completed), [1, 2, 3, 4, 5]);
+    assert.deepEqual(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').progress.completed),
+      Array.from({ length: maxLevel }, (_, i) => i + 1));
+    assert.ok(await page.evaluate(id => window.__mysticGame.scene.getScene('puzzle').progress.completed.includes(id), maxLevel));
     await clickControl(page, 'galleryButton', mobile);
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'gallery');
     const firstCard = await page.evaluate(() => { const r = window.__mysticGame.scene.getScene('puzzle').cardRects()[0];
@@ -162,10 +178,12 @@ async function runSize(browser, width, height) {
     await clickControl(page, 'backButton', mobile);
     await clickControl(page, 'backButton', mobile);
     await clickControl(page, 'menuButton', mobile);
-    await page.waitForFunction(() => { const s = window.__mysticGame.scene.getScene('puzzle');
-      return s.mode === 'game' && s.level.id === 6 && s.pieces.length === 12; });
+    await page.waitForFunction(next => { const s = window.__mysticGame.scene.getScene('puzzle');
+      return s.mode === 'game' && s.level.id === next; }, maxLevel === 10 ? 1 : maxLevel + 1);
+    assert.deepEqual(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').progress.completed),
+      Array.from({ length: maxLevel }, (_, i) => i + 1));
     assert.deepEqual(errors, []);
-    return { size: `${width}x${height}`, levels: counts.slice(firstLevel - 1), fullRequests: fullRequests.length, errors };
+    return { size: `${width}x${height}`, levels: counts.slice(firstLevel - 1, maxLevel), fullRequests: fullRequests.length, errors };
   } finally { await context.close(); }
 }
 

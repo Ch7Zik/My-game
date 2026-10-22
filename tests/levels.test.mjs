@@ -5,14 +5,19 @@ import { assetUrl } from '../src/assetUrl.ts';
 import { createRegions, inspectRegions, qualityProblems } from '../src/geometry.ts';
 import { completeLevel, freshProgress, isInGallery, isUnlocked, nextUnplayed, PROGRESS_KEY, restoreProgress, saveProgress, selectLevel } from '../src/progress.ts';
 
-test('five supplied paintings keep their numbered order and exact piece counts', () => {
+test('ten supplied paintings keep their numbered order, titles and exact piece counts', () => {
   assert.equal(assetUrl('assets/level-01.webp'), '/assets/level-01.webp');
-  assert.deepEqual(LEVELS.map(level => level.pieces), [10, 11, 12, 12, 12, 12]);
-  for (let id = 1; id <= 5; id++) {
-    assert.equal(LEVELS[id - 1].art, `/assets/level-0${id}.webp`);
-    assert.equal(LEVELS[id - 1].thumbnail, `/assets/level-0${id}-thumb.webp`);
+  assert.deepEqual(LEVELS.map(level => level.pieces), [10, 11, 12, 12, 12, 14, 14, 15, 15, 15]);
+  assert.deepEqual(LEVELS.map(level => level.title), [
+    'Эликсир забвения', 'Колодец забытых имён', 'Часовня забытых', 'Зеркало ворона', 'Винтовая башня',
+    'Хранитель библиотеки', 'Печать крови', 'Туманный сад', 'Песочные часы вечности', 'Ледяная часовня',
+  ]);
+  for (let id = 1; id <= 10; id++) {
+    const number = String(id).padStart(2, '0');
+    assert.equal(LEVELS[id - 1].art, `/assets/level-${number}.webp`);
+    assert.equal(LEVELS[id - 1].thumbnail, `/assets/level-${number}-thumb.webp`);
   }
-  assert.equal(new Set(LEVELS.map(level => level.art)).size, 6);
+  assert.equal(new Set(LEVELS.map(level => level.art)).size, 10);
   for (const level of LEVELS) {
     assert.ok(level.columns * level.rows >= level.pieces);
     assert.equal(level.slots.length, level.pieces);
@@ -46,15 +51,16 @@ test('completion opens only the next level and adds its picture to the gallery',
   assert.equal(isUnlocked(progress, 2), false);
   assert.equal(isInGallery(progress, 1), false);
   assert.equal(selectLevel(progress, 3).currentLevel, 1);
-  for (let id = 1; id <= 6; id++) {
+  for (let id = 1; id <= 10; id++) {
     progress = completeLevel(progress, id);
     assert.equal(isInGallery(progress, id), true);
     assert.equal(nextUnplayed(progress), id + 1);
-    if (id < 6) assert.equal(isUnlocked(progress, id + 1), true);
+    if (id < 10) assert.equal(isUnlocked(progress, id + 1), true);
   }
-  assert.equal(progress.completed.length, 6);
-  assert.equal(nextUnplayed(progress), 7);
-  assert.equal(progress.currentLevel, 6);
+  assert.equal(progress.completed.length, 10);
+  assert.equal(nextUnplayed(progress), 11);
+  assert.equal(progress.currentLevel, 10);
+  assert.equal(isUnlocked(progress, 11), false);
 });
 
 test('versioned progress survives reload and corrupt saves recover safely', () => {
@@ -79,4 +85,17 @@ test('existing five-level save unlocks level six without losing history', () => 
   assert.equal(nextUnplayed(restored), 6);
   assert.equal(isUnlocked(restored, 6), true);
   assert.equal(isInGallery(restored, 6), false);
+});
+
+test('completion of level ten and replay retain the entire collection', () => {
+  let progress = freshProgress();
+  for (let id = 1; id <= 10; id++) progress = completeLevel(progress, id);
+  const values = new Map();
+  const storage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  saveProgress(storage, progress);
+  assert.deepEqual(restoreProgress(storage).completed, Array.from({ length: 10 }, (_, i) => i + 1));
+  progress = completeLevel(restoreProgress(storage), 1);
+  assert.deepEqual(progress.completed, Array.from({ length: 10 }, (_, i) => i + 1));
+  assert.equal(nextUnplayed(progress), 11);
+  assert.equal(isUnlocked(progress, 11), false);
 });

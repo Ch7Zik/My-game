@@ -6,7 +6,7 @@ export interface ScatterQuality { minDistance: number; meanDistance: number; tot
 
 function gridSize(count: number): { columns: number; rows: number } {
   if (count >= 10 && count <= 12) return { columns: 3, rows: 4 };
-  if (count === 16) return { columns: 4, rows: 4 };
+  if (count >= 14 && count <= 16) return { columns: 4, rows: 4 };
   if (count === 20) return { columns: 4, rows: 5 };
   throw new Error(`Unsupported puzzle size: ${count}`);
 }
@@ -54,7 +54,8 @@ export function scatterPieces(pieces: readonly LoosePieceSize[], board: Rect, se
     }
     const positions = order.map(index => slots[index]);
     const q = assessScatter(pieces, board, positions);
-    const score = q.minDistance * 8 + q.meanDistance * 3 - q.totalOverlap * 8 - q.maxOverlap * 12
+    const crowding = pieces.length >= 14 ? 2 : 1;
+    const score = q.minDistance * 8 + q.meanDistance * 3 - q.totalOverlap * 8 * crowding - q.maxOverlap * 12 * crowding
       - Math.max(0, .44 - q.minDistance) * 250;
     if (score > bestScore) { bestScore = score; best = positions; }
   }
