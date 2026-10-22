@@ -15,7 +15,7 @@ const SIX_SITES: Point[] = [
   { x: .21, y: .16 }, { x: .78, y: .18 }, { x: .28, y: .48 },
   { x: .72, y: .47 }, { x: .19, y: .82 }, { x: .78, y: .81 },
 ];
-// A staggered 3×4 mosaic for the single experimental level. Shared warps
+// A staggered 3×4 mosaic for the collection's denser levels. Shared warps
 // make every border curved while leaving broad, connected finger-sized masks.
 const TWELVE_SITES: Point[] = [
   { x: .16, y: .11 }, { x: .49, y: .13 }, { x: .83, y: .10 },
@@ -23,6 +23,13 @@ const TWELVE_SITES: Point[] = [
   { x: .16, y: .63 }, { x: .48, y: .62 }, { x: .84, y: .64 },
   { x: .18, y: .88 }, { x: .52, y: .86 }, { x: .81, y: .89 },
 ];
+// Keep the same four-row silhouette family when the first two collection
+// levels need exactly 10 and 11 pieces. Removing central sites lets the
+// neighbouring masks fill the space without creating tiny fragments.
+const COLLECTION_SITES: Record<10 | 11, Point[]> = {
+  10: TWELVE_SITES.filter((_, i) => i !== 4 && i !== 10),
+  11: TWELVE_SITES.filter((_, i) => i !== 10),
+};
 const LOBES = [
   { id: 0, x: .28, y: .30, rx: .15, ry: .13, power: .031 },
   { id: 1, x: .48, y: .32, rx: .16, ry: .13, power: .041 },
@@ -52,17 +59,17 @@ function warp(u: number, v: number): Point {
   return { x, y };
 }
 
-export function createRegions(width: number, height: number, cols = 2, rows = 4, seed = 713): { labels: Uint8Array; regions: PieceRegion[] } {
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 8 || height < 8 || !Number.isInteger(cols * rows) || cols < 1 || rows < 1 || cols * rows > 254) throw new Error('Invalid puzzle dimensions');
-  const count = cols * rows;
+export function createRegions(width: number, height: number, cols = 2, rows = 4, seed = 713, pieces = cols * rows): { labels: Uint8Array; regions: PieceRegion[] } {
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 8 || height < 8 || !Number.isInteger(pieces) || cols < 1 || rows < 1 || pieces < 1 || pieces > cols * rows || pieces > 254) throw new Error('Invalid puzzle dimensions');
+  const count = pieces;
   const authored = cols === 2 && (rows === 2 || rows === 3 || rows === 4);
-  const experimental = cols === 3 && rows === 4;
+  const experimental = cols === 3 && rows === 4 && count >= 10 && count <= 12;
   const dense = cols === 4 && (rows === 4 || rows === 5);
   const curatedSites = dense ? Array.from({ length: count }, (_, i) => {
     const column = i % cols, row = Math.floor(i / cols);
     return { x: (column + .5 + .09 * Math.sin(i * 2.71 + seed * .01)) / cols,
       y: (row + .5 + .09 * Math.cos(i * 3.17 + seed * .007)) / rows };
-  }) : experimental ? TWELVE_SITES : count === 4 ? FOUR_SITES : count === 6 ? SIX_SITES : LEVEL_ONE_SITES;
+  }) : experimental ? count === 12 ? TWELVE_SITES : COLLECTION_SITES[count as 10 | 11] : count === 4 ? FOUR_SITES : count === 6 ? SIX_SITES : LEVEL_ONE_SITES;
   const labels = new Uint8Array(width * height);
   const sums = Array.from({ length: count }, () => ({ x: 0, y: 0, n: 0, minX: width, minY: height, maxX: 0, maxY: 0 }));
   const sites = Array.from({ length: count }, (_, i) => ({ x: ((i % cols) + .5) / cols, y: (Math.floor(i / cols) + .5) / rows }));

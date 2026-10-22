@@ -35,6 +35,7 @@ const safeStorage = {
 class PuzzleScene extends Phaser.Scene {
   private art!: HTMLImageElement;
   private artLoaded = false;
+  private galleryArtLoading = new Set<number>();
   private level: LevelConfig = LEVELS[0];
   private progress: Progress = restoreProgress(safeStorage);
   private results: Results = restoreResults(safeStorage);
@@ -94,7 +95,7 @@ class PuzzleScene extends Phaser.Scene {
     this.load.image('plaque-navy', assetUrl('assets/plaque-navy.webp'));
     this.load.image('header-ornate', assetUrl('assets/header-ornate.webp'));
     this.load.image('game-endpaper', assetUrl('assets/game-endpaper.webp'));
-    for (const level of LEVELS) this.load.image(`art-${level.id}`, level.art);
+    for (const level of LEVELS) this.load.image(`art-${level.id}`, level.thumbnail);
   }
   create() {
     void levelFontReady.then(() => { if (this.mode === 'game') this.draw(); });
@@ -140,7 +141,7 @@ class PuzzleScene extends Phaser.Scene {
     const sctx = source.getContext('2d', { willReadFrequently: true })!;
     sctx.drawImage(this.art, 0, 0, cw, ch);
     const sourcePixels = sctx.getImageData(0, 0, cw, ch).data;
-    const { labels, regions } = createRegions(cw, ch, this.level.columns, this.level.rows, this.level.seed);
+    const { labels, regions } = createRegions(cw, ch, this.level.columns, this.level.rows, this.level.seed, this.level.pieces);
     const quality = inspectRegions(cw, ch, labels, regions);
     const problems = qualityProblems(quality);
     if (problems.length) console.warn('Puzzle geometry:', problems);
@@ -184,7 +185,7 @@ class PuzzleScene extends Phaser.Scene {
       const piece: Piece = { id: region.id, sprite, region, placed: false, home: { x: 0, y: 0 }, slot: this.level.slots[region.id] ?? SLOT_ORDER[region.id], start: null, hit, texW: tw, texH: th, baseW: 0, baseH: 0 };
       this.pieces.push(piece);
     }
-    if (this.level.id === 6) {
+    if (this.level.pieces >= 10) {
       const scale = looseScale(this.viewWidth(), this.viewHeight());
       const sizes = this.pieces.map(piece => {
         const b = piece.region.bounds;
@@ -763,7 +764,19 @@ class PuzzleScene extends Phaser.Scene {
     const top = desktop ? 160 : 102;
     const width = Math.min(w - (desktop ? 80 : 22), (h - top - (desktop ? 85 : 70)) * 2 / 3, desktop ? 590 : 590);
     const height = width * 1.5;
-    const view = this.add.image(w / 2, top + height / 2, `art-${level.id}`).setDepth(5).setDisplaySize(width, height);
+    const fullKey = `full-art-${level.id}`;
+    if (!this.textures.exists(fullKey) && !this.galleryArtLoading.has(level.id)) {
+      this.galleryArtLoading.add(level.id);
+      const full = new Image();
+      full.onload = () => {
+        this.galleryArtLoading.delete(level.id);
+        if (!this.textures.exists(fullKey)) this.textures.addImage(fullKey, full);
+        if (this.mode === 'view' && this.viewedLevel === level.id) this.draw();
+      };
+      full.onerror = () => { this.galleryArtLoading.delete(level.id); console.error(`Failed to load gallery art ${level.id}`); };
+      full.src = level.art;
+    }
+    const view = this.add.image(w / 2, top + height / 2, this.textures.exists(fullKey) ? fullKey : `art-${level.id}`).setDepth(5).setDisplaySize(width, height);
     this.uiImages.push(view);
     this.chrome.lineStyle(1.4, 0xd3aa70, .9).strokeRoundedRect(w / 2 - width / 2 - 3, top - 3, width + 6, height + 6, 7);
     const footerY = top + height + (desktop ? 21 : 17);

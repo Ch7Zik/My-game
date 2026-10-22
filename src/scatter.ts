@@ -5,7 +5,7 @@ export interface LoosePieceSize { id: number; home: Point; width: number; height
 export interface ScatterQuality { minDistance: number; meanDistance: number; totalOverlap: number; maxOverlap: number }
 
 function gridSize(count: number): { columns: number; rows: number } {
-  if (count === 12) return { columns: 3, rows: 4 };
+  if (count >= 10 && count <= 12) return { columns: 3, rows: 4 };
   if (count === 16) return { columns: 4, rows: 4 };
   if (count === 20) return { columns: 4, rows: 5 };
   throw new Error(`Unsupported puzzle size: ${count}`);

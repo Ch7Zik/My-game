@@ -82,7 +82,7 @@ async function runSize(browser, width, height) {
     if (!touch) await page.screenshot({ path: `${output}/gallery-${width}x${height}.png` });
     await clickControl(page, 'backButton', touch);
     await clickControl(page, 'menuButton', touch);
-    await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 4);
+    await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 10);
     if (!touch) await page.screenshot({ path: `${output}/game-${width}x${height}.png` });
     assert.deepEqual(errors, []);
     return { size: `${width}x${height}`, backgroundRequests: backgroundRequests.length, canvas: layout.canvas };
