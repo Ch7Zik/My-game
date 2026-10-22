@@ -71,7 +71,7 @@ test('versioned progress survives reload and corrupt saves recover safely', () =
   assert.deepEqual(restoreProgress(storage), { version: 1, completed: [1], currentLevel: 2 });
 });
 
-test('existing five-level save unlocks the experiment without losing history', () => {
+test('existing five-level save unlocks level six without losing history', () => {
   const oldSave = { version: 1, completed: [1, 2, 3, 4, 5], currentLevel: 5 };
   const storage = { getItem: () => JSON.stringify(oldSave) };
   const restored = restoreProgress(storage);
