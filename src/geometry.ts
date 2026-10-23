@@ -65,10 +65,11 @@ export function createRegions(width: number, height: number, cols = 2, rows = 4,
   const authored = cols === 2 && (rows === 2 || rows === 3 || rows === 4);
   const experimental = cols === 3 && rows === 4 && count >= 10 && count <= 12;
   const dense = cols === 4 && (rows === 4 || rows === 5);
-  // Distribute the three/two unused anchors through the five rows. Leaving
+  // Distribute the unused anchors through the five rows. Leaving
   // them all at the bottom would compress the preceding row into thin masks.
   const denseAnchors = count === 17 ? Array.from({ length: 20 }, (_, i) => i).filter(i => ![5, 10, 15].includes(i))
     : count === 18 ? Array.from({ length: 20 }, (_, i) => i).filter(i => ![6, 13].includes(i))
+      : count === 19 ? Array.from({ length: 20 }, (_, i) => i).filter(i => i !== 10)
       : Array.from({ length: count }, (_, i) => i);
   const curatedSites = dense ? denseAnchors.map((anchor, i) => {
     const column = anchor % cols, row = Math.floor(anchor / cols);
