@@ -5,9 +5,9 @@ export interface LevelConfig {
   title: string;
   art: string;
   thumbnail: string;
-  pieces: 4 | 6 | 8 | 10 | 11 | 12 | 14 | 15 | 16 | 17 | 18 | 19 | 20;
+  pieces: 4 | 6 | 8 | 10 | 11 | 12 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22;
   columns: 2 | 3 | 4;
-  rows: 2 | 3 | 4 | 5;
+  rows: 2 | 3 | 4 | 5 | 6;
   seed: number;
   slots: readonly number[];
   phrase: string;
@@ -34,6 +34,11 @@ export const LEVELS: readonly LevelConfig[] = [
   { id: 18, title: 'Серебряный мост', art: assetUrl('assets/level-18.webp'), thumbnail: assetUrl('assets/level-18-thumb.webp'), pieces: 19, columns: 4, rows: 5, seed: 1549, slots: Array.from({ length: 19 }, (_, i) => i), phrase: 'Картина пополнила галерею…' },
   { id: 19, title: 'Корни мирового древа', art: assetUrl('assets/level-19.webp'), thumbnail: assetUrl('assets/level-19-thumb.webp'), pieces: 20, columns: 4, rows: 5, seed: 1526, slots: Array.from({ length: 20 }, (_, i) => i), phrase: 'Картина пополнила галерею…' },
   { id: 20, title: 'Пепельная пустошь', art: assetUrl('assets/level-20.webp'), thumbnail: assetUrl('assets/level-20-thumb.webp'), pieces: 20, columns: 4, rows: 5, seed: 1530, slots: Array.from({ length: 20 }, (_, i) => i), phrase: 'Картина пополнила галерею…' },
+  { id: 21, title: 'Жемчужная раковина', art: assetUrl('assets/level-21.webp'), thumbnail: assetUrl('assets/level-21-thumb.webp'), pieces: 21, columns: 4, rows: 6, seed: 1525, slots: Array.from({ length: 21 }, (_, i) => i), phrase: 'Картина пополнила галерею…' },
+  { id: 22, title: 'Гиблое болото', art: assetUrl('assets/level-22.webp'), thumbnail: assetUrl('assets/level-22-thumb.webp'), pieces: 21, columns: 4, rows: 6, seed: 1550, slots: Array.from({ length: 21 }, (_, i) => i), phrase: 'Картина пополнила галерею…' },
+  { id: 23, title: 'Зеркальный зал', art: assetUrl('assets/level-23.webp'), thumbnail: assetUrl('assets/level-23-thumb.webp'), pieces: 22, columns: 4, rows: 6, seed: 1500, slots: Array.from({ length: 22 }, (_, i) => i), phrase: 'Картина пополнила галерею…' },
+  { id: 24, title: 'Золотая кладовая', art: assetUrl('assets/level-24.webp'), thumbnail: assetUrl('assets/level-24-thumb.webp'), pieces: 22, columns: 4, rows: 6, seed: 1501, slots: Array.from({ length: 22 }, (_, i) => i), phrase: 'Картина пополнила галерею…' },
+  { id: 25, title: 'Последние врата', art: assetUrl('assets/level-25.webp'), thumbnail: assetUrl('assets/level-25-thumb.webp'), pieces: 14, columns: 4, rows: 4, seed: 1565, slots: Array.from({ length: 14 }, (_, i) => i), phrase: 'Картина пополнила галерею…' },
 ];
 
 export function levelById(id: number): LevelConfig { return LEVELS.find(level => level.id === id) ?? LEVELS[0]; }
