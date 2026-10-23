@@ -161,7 +161,8 @@ async function runSize(browser, count, width, height) {
     const next = { x: won.next.x + won.next.width / 2, y: won.next.y + won.next.height / 2 };
     const nextScreen = await screenPoint(page, next);
     if (mobile) await page.touchscreen.tap(nextScreen.x, nextScreen.y); else await page.mouse.click(nextScreen.x, nextScreen.y);
-    await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'gallery');
+    await page.waitForFunction(() => { const scene = window.__mysticGame.scene.getScene('puzzle');
+      return scene.mode === 'game' && scene.level.id === 7; });
     assert.ok(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').progress.completed.includes(6)));
     if (width === 390) {
       await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').startGame(6));
