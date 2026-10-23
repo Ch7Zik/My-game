@@ -149,7 +149,7 @@ async function runSize(browser, width, height) {
       return s.mode === 'game' && s.level.id === next; }, maxLevel + 1);
     else {
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'gallery');
-      for (let row = 0; row < 10; row++) { await page.mouse.wheel(0, 600); await page.waitForTimeout(80); }
+      for (let row = 0; row < counts.length; row++) { await page.mouse.wheel(0, 600); await page.waitForTimeout(80); }
       await page.waitForFunction(index => { const s = window.__mysticGame.scene.getScene('puzzle');
         const r = s.cardRects()[index]; return r.y >= 76 && r.bottom <= s.viewHeight() - 9; }, counts.length - 1);
       await capture(page, `gallery-completed-${width}x${height}`);
