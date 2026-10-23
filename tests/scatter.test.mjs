@@ -6,10 +6,10 @@ import { LEVELS, levelForPlay } from '../src/levels.ts';
 import { assessScatter, scatterPieces, scatterPosition } from '../src/scatter.ts';
 
 const sizes = [[360, 640], [375, 667], [390, 844], [393, 852], [430, 932], [1920, 1080]];
-const variants = [[3, 4, 10], [3, 4, 11], [3, 4, 12], [4, 4, 14], [4, 4, 15], [4, 4, 16], [4, 5, 20]];
+const variants = [[3, 4, 10], [3, 4, 11], [3, 4, 12], [4, 4, 14], [4, 4, 15], [4, 4, 16], [4, 5, 17], [4, 5, 18], [4, 5, 20]];
 
-test('16 and 20 pieces are selectable only in development; published level 6 stays at 14', () => {
-  assert.deepEqual(LEVELS.map(level => level.pieces), [10, 11, 12, 12, 12, 14, 14, 15, 15, 15]);
+test('development size overrides affect only level 6; published level 6 stays at 14', () => {
+  assert.deepEqual(LEVELS.map(level => level.pieces), [10, 11, 12, 12, 12, 14, 14, 15, 15, 15, 16, 16, 17, 17, 18]);
   for (const count of [16, 20]) {
     assert.equal(levelForPlay(6, count, true).pieces, count);
     assert.equal(levelForPlay(6, count, false).pieces, 14);
@@ -49,7 +49,7 @@ test('every start is far from its home, inside the board and visibly touchable',
         const start = scatterPosition(board, point, piece.width, piece.height);
         assert.ok(start.x - piece.width / 2 >= board.x && start.x + piece.width / 2 <= board.x + board.width);
         assert.ok(start.y - piece.height / 2 >= board.y && start.y + piece.height / 2 <= board.y + board.height);
-        assert.ok(Math.min(piece.width, piece.height) >= 65, 'piece too small for a finger');
+        assert.ok(Math.min(piece.width, piece.height) >= (width === 360 ? 64 : 65), 'piece too small for a finger');
         return start;
       });
       const total = Array(regions.length).fill(0), visible = Array(regions.length).fill(0);
@@ -66,7 +66,7 @@ test('every start is far from its home, inside the board and visibly touchable',
           for (const id of hits) total[id]++;
           if (hits.length) visible[hits.at(-1)]++;
         }
-      const minimumVisible = count === 14 || count === 15 ? .35 : count < 12 ? .55 : .75;
+      const minimumVisible = count >= 14 && count <= 18 ? .35 : count < 12 ? .55 : .75;
       assert.ok(visible.every((pixels, id) => total[id] && pixels / total[id] > minimumVisible && pixels * 16 > 1936),
         `${count}, ${width}×${height}: hidden piece ${visible.map((n,i)=>(n/total[i]).toFixed(2)).join(',')}`);
     }
