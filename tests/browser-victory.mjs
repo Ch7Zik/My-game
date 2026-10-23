@@ -3,6 +3,9 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
 import { strokeFrameRect } from '../src/chromeLayout.ts';
+import { LEVELS } from '../src/levels.ts';
+
+const firstTitle = LEVELS[0].title;
 
 const port = 4177;
 const base = `http://127.0.0.1:${port}/`;
@@ -130,6 +133,7 @@ async function drag(page, cdp, start, target) {
 }
 
 async function runSize(browser, width, height) {
+  console.log(`Checking victory layout ${width}x${height}`);
   const mobile = width < 900;
   const context = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: details && width === 390 ? 2 : 1, isMobile: mobile, hasTouch: mobile });
   const page = await context.newPage();
@@ -148,6 +152,7 @@ async function runSize(browser, width, height) {
     if (mobile) await page.touchscreen.tap(playScreen.x, playScreen.y);
     else await page.mouse.click(playScreen.x, playScreen.y);
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').pieces.length === 10);
+    console.log(`  Puzzle started ${width}x${height}`);
     await page.waitForFunction(() => [...document.fonts]
       .some(face => face.family === 'MysticLevelSerif' && face.status === 'loaded'));
     const game = await page.evaluate(() => {
@@ -164,7 +169,7 @@ async function runSize(browser, width, height) {
         }) };
     });
     const level = game.labels.find(l => l.text === 'УРОВЕНЬ 1');
-    const name = game.labels.find(l => l.text === 'Картина 1');
+    const name = game.labels.find(l => l.text === firstTitle);
     const timer = game.labels.find(l => /^\d\d:\d\d$/.test(l.text));
     for (const label of [level, name, timer]) assert.ok(label && inside(label.bounds, { x: 0, y: 0, width, height }));
     assert.match(level.fontFamily, /^MysticLevelSerif/);
@@ -199,12 +204,13 @@ async function runSize(browser, width, height) {
       });
       assert.ok(long.text.endsWith('…'));
       assert.ok(inside(long.bounds, { x: game.back.x + 23, y: 0, width: game.hint.x - game.back.x - 46, height: game.board.y }));
-      await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
-        s.level = { ...s.level, title: 'Картина 1' }; s.draw(); });
+      await page.evaluate(title => { const s = window.__mysticGame.scene.getScene('puzzle');
+        s.level = { ...s.level, title }; s.draw(); }, firstTitle);
     }
     const cdp = mobile ? await context.newCDPSession(page) : null;
     const ids = await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').pieces.map(p => p.id).sort((a, b) => b - a));
     for (const id of ids) {
+      console.log(`  Moving piece ${id} at ${width}x${height}`);
       if (width === 430 && id === ids.at(-1)) await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').tweens.pauseAll());
       const { start, target } = await dragCoordinates(page, id);
       await drag(page, cdp, start, target);
@@ -212,6 +218,7 @@ async function runSize(browser, width, height) {
       if (id !== ids.at(-1)) await page.waitForTimeout(310);
     }
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'complete');
+    console.log(`  Victory reached ${width}x${height}`);
     if (task19CaptureDir) {
       for (const [phase, elapsed] of [['early', 80], ['during', 610], ['final', 1250]]) {
         await page.evaluate(offset => {
@@ -252,7 +259,7 @@ async function runSize(browser, width, height) {
     assert.ok(Math.abs(result.image.bounds.width - picture.width) < 1);
     assert.ok(Math.abs(result.image.bounds.height - picture.height) < 1);
     const title = result.labels.find(l => l.text === 'Картина собрана!');
-    const pictureName = result.labels.find(l => l.text === 'Картина 1');
+    const pictureName = result.labels.find(l => l.text === firstTitle);
     const time = result.labels.find(l => l.text === `Время ${String(Math.floor(result.completedMs / 60000)).padStart(2, '0')}:${String(Math.floor(result.completedMs / 1000) % 60).padStart(2, '0')}`);
     const nextLabel = result.labels.find(l => l.text === 'Далее');
     for (const label of [title, pictureName, time, nextLabel]) {
@@ -284,8 +291,8 @@ async function runSize(browser, width, height) {
       assert.ok(long.text.endsWith('…'));
       assert.ok(inside(long.bounds, { x: 0, y: 0, width, height }));
       assert.ok(!overlaps(long.bounds, long.layout.picture));
-      await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
-        s.level = { ...s.level, title: 'Картина 1' }; s.draw(); });
+      await page.evaluate(title => { const s = window.__mysticGame.scene.getScene('puzzle');
+        s.level = { ...s.level, title }; s.draw(); }, firstTitle);
     }
     await page.waitForTimeout(750);
     const screenshot = await page.screenshot({ type: 'png', scale: 'css' });

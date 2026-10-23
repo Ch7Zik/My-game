@@ -19,7 +19,7 @@ export const STAR_THRESHOLDS_SECONDS = {
   12: { three: 360, two: 720 },
 } as const;
 
-export function starsForTime(pieces: 4 | 6 | 8 | 10 | 11 | 12 | 14 | 15 | 16 | 20, elapsedMs: number): Stars {
+export function starsForTime(pieces: 4 | 6 | 8 | 10 | 11 | 12 | 14 | 15 | 16 | 17 | 18 | 20, elapsedMs: number): Stars {
   // Collection masks use the established 12-piece timing bracket.
   const bracket = pieces === 4 || pieces === 6 || pieces === 8 ? pieces : 12;
   const { three, two } = STAR_THRESHOLDS_SECONDS[bracket];
