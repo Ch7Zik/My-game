@@ -8,6 +8,7 @@ function gridSize(count: number): { columns: number; rows: number } {
   if (count >= 10 && count <= 12) return { columns: 3, rows: 4 };
   if (count >= 14 && count <= 16) return { columns: 4, rows: 4 };
   if (count >= 17 && count <= 20) return { columns: 4, rows: 5 };
+  if (count === 21 || count === 22) return { columns: 4, rows: 6 };
   throw new Error(`Unsupported puzzle size: ${count}`);
 }
 

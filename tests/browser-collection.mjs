@@ -8,13 +8,14 @@ const base = `http://127.0.0.1:${port}/`;
 const allSizes = [[375, 667], [390, 844], [1920, 1080]];
 const maxLevel = Number(process.env.COLLECTION_MAX_LEVEL || 5);
 const firstLevel = Number(process.env.COLLECTION_FIRST_LEVEL || 1);
-const output = process.env.COLLECTION_OUTPUT || (maxLevel > 15 ? 'docs/screenshots/levels-16-20' : maxLevel > 10 ? 'docs/screenshots/levels-11-15' : maxLevel > 5 ? 'docs/screenshots/levels-06-10' : 'docs/screenshots/levels-01-05');
-const counts = [10, 11, 12, 12, 12, 14, 14, 15, 15, 15, 16, 16, 17, 17, 18, 18, 18, 19, 20, 20];
+const output = process.env.COLLECTION_OUTPUT || (maxLevel > 20 ? 'docs/screenshots/levels-21-25' : maxLevel > 15 ? 'docs/screenshots/levels-16-20' : maxLevel > 10 ? 'docs/screenshots/levels-11-15' : maxLevel > 5 ? 'docs/screenshots/levels-06-10' : 'docs/screenshots/levels-01-05');
+const counts = [10, 11, 12, 12, 12, 14, 14, 15, 15, 15, 16, 16, 17, 17, 18, 18, 18, 19, 20, 20, 21, 21, 22, 22, 14];
 const titles = ['Эликсир забвения', 'Колодец забытых имён', 'Часовня забытых', 'Зеркало ворона',
   'Винтовая башня', 'Хранитель библиотеки', 'Печать крови', 'Туманный сад',
   'Песочные часы вечности', 'Ледяная часовня', 'Обсерватория', 'Портрет хранителя',
   'Кузница забвенных клинков', 'Белый олень', 'Костяной склеп',
-  'Аметистовые врата', 'Медный механизм', 'Серебряный мост', 'Корни мирового древа', 'Пепельная пустошь'];
+  'Аметистовые врата', 'Медный механизм', 'Серебряный мост', 'Корни мирового древа', 'Пепельная пустошь',
+  'Жемчужная раковина', 'Гиблое болото', 'Зеркальный зал', 'Золотая кладовая', 'Последние врата'];
 assert.ok(Number.isInteger(maxLevel) && Number.isInteger(firstLevel) && firstLevel >= 1 && firstLevel <= maxLevel && maxLevel <= counts.length);
 const sizes = process.env.COLLECTION_SIZES ? allSizes.filter(([w, h]) =>
   process.env.COLLECTION_SIZES.split(',').includes(`${w}x${h}`)) : allSizes;
@@ -105,7 +106,7 @@ async function runSize(browser, width, height) {
   page.on('pageerror', error => errors.push(error.message));
   page.on('response', response => {
     if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`);
-    if (/level-(?:0[1-9]|1[0-9]|20)\.webp$/.test(new URL(response.url()).pathname)) fullRequests.push(response.url());
+    if (/level-(?:0[1-9]|1[0-9]|2[0-5])\.webp$/.test(new URL(response.url()).pathname)) fullRequests.push(response.url());
   });
   try {
     await page.goto(base);
@@ -157,9 +158,9 @@ async function runSize(browser, width, height) {
       const lastPoint = await screenPoint(page, lastCard);
       if (mobile) await page.touchscreen.tap(lastPoint.x, lastPoint.y);
       else await page.mouse.click(lastPoint.x, lastPoint.y);
-      await page.waitForFunction(() => { const s = window.__mysticGame.scene.getScene('puzzle');
-        return s.mode === 'view' && s.viewedLevel === 20 && s.textures.exists('full-art-20'); });
-      await capture(page, `gallery-level-20-${width}x${height}`);
+      await page.waitForFunction(last => { const s = window.__mysticGame.scene.getScene('puzzle');
+        return s.mode === 'view' && s.viewedLevel === last && s.textures.exists(`full-art-${last}`); }, counts.length);
+      await capture(page, `gallery-level-${maxLevel}-${width}x${height}`);
     }
     await page.reload();
     await page.waitForFunction(() => window.__mysticGame?.scene?.getScene('puzzle')?.menuArt?.active);
