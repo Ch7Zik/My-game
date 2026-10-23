@@ -16,7 +16,7 @@ npm run build
 
 ## Тест на телефоне через GitHub Pages
 
-После объединения PR с настройкой Pages откройте в репозитории **Settings → Pages → Source → GitHub Actions**. Дождитесь успешного workflow **Publish test game to GitHub Pages**. Затем откройте на Android или iPhone адрес https://ch7zik.github.io/My-game/ в браузере. Кнопкой «Играть» запускается следующий доступный уровень; завершения сохраняются в браузере этого устройства.
+После объединения PR в `main` проверьте успешное выполнение workflow **Publish test game to GitHub Pages** на вкладке **Actions**, затем откройте https://ch7zik.github.io/My-game/ на телефоне. Если workflow не запускается после слияния, проверьте **Settings → Pages → Build and deployment → Source: GitHub Actions**. Кнопка «Играть» запускает следующий доступный уровень; завершения сохраняются в браузере устройства.
 
 Для Pages workflow выполняет `npm run build:pages` с базовым путём `/My-game/`. Обычная команда `npm run build` по-прежнему собирает игру для запуска из корня ZIP Яндекс Игр.
 
