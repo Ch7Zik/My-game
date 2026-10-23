@@ -6,10 +6,10 @@ import { LEVELS, levelForPlay } from '../src/levels.ts';
 import { assessScatter, scatterPieces, scatterPosition } from '../src/scatter.ts';
 
 const sizes = [[360, 640], [375, 667], [390, 844], [393, 852], [430, 932], [1920, 1080]];
-const variants = [[3, 4, 10], [3, 4, 11], [3, 4, 12], [4, 4, 14], [4, 4, 15], [4, 4, 16], [4, 5, 17], [4, 5, 18], [4, 5, 20]];
+const variants = [[3, 4, 10], [3, 4, 11], [3, 4, 12], [4, 4, 14], [4, 4, 15], [4, 4, 16], [4, 5, 17], [4, 5, 18], [4, 5, 19], [4, 5, 20]];
 
 test('development size overrides affect only level 6; published level 6 stays at 14', () => {
-  assert.deepEqual(LEVELS.map(level => level.pieces), [10, 11, 12, 12, 12, 14, 14, 15, 15, 15, 16, 16, 17, 17, 18]);
+  assert.deepEqual(LEVELS.map(level => level.pieces), [10, 11, 12, 12, 12, 14, 14, 15, 15, 15, 16, 16, 17, 17, 18, 18, 18, 19, 20, 20]);
   for (const count of [16, 20]) {
     assert.equal(levelForPlay(6, count, true).pieces, count);
     assert.equal(levelForPlay(6, count, false).pieces, 14);

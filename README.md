@@ -39,8 +39,13 @@ npm run build
 | 13 | 17 | Кузница забвенных клинков | `public/assets/level-13.webp` |
 | 14 | 17 | Белый олень | `public/assets/level-14.webp` |
 | 15 | 18 | Костяной склеп | `public/assets/level-15.webp` |
+| 16 | 18 | Аметистовые врата | `public/assets/level-16.webp` |
+| 17 | 18 | Медный механизм | `public/assets/level-17.webp` |
+| 18 | 19 | Серебряный мост | `public/assets/level-18.webp` |
+| 19 | 20 | Корни мирового древа | `public/assets/level-19.webp` |
+| 20 | 20 | Пепельная пустошь | `public/assets/level-20.webp` |
 
-Утверждённые картины коллекции предоставлены пользователем. Исходные PNG уровней 6–15 сохранены вне production-сборки; технические преобразования описаны в [`docs/art/levels-06-10.md`](docs/art/levels-06-10.md) и [`docs/art/levels-11-15.md`](docs/art/levels-11-15.md). Художественные фоны и элементы интерфейса перечислены в [`public/assets/README.md`](public/assets/README.md).
+Утверждённые картины коллекции предоставлены пользователем. Исходные PNG уровней 6–20 сохранены вне production-сборки; технические преобразования описаны в [`docs/art/levels-06-10.md`](docs/art/levels-06-10.md), [`docs/art/levels-11-15.md`](docs/art/levels-11-15.md) и [`docs/art/levels-16-20.md`](docs/art/levels-16-20.md). Художественные фоны и элементы интерфейса перечислены в [`public/assets/README.md`](public/assets/README.md).
 
 ## Звук и качество рендера
 
