@@ -13,6 +13,7 @@ const sizes = process.env.MENU_SIZES
   ? allSizes.filter(([width, height]) => process.env.MENU_SIZES.split(',').includes(`${width}x${height}`)) : allSizes;
 assert.ok(sizes.length, 'No matching MENU_SIZES');
 mkdirSync(output, { recursive: true });
+mkdirSync('docs/screenshots/level-select-redesign', { recursive: true });
 
 async function ready() {
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -84,15 +85,15 @@ async function runSize(browser, width, height) {
       { music: false, effects: false });
     await clickControl(page, 'levelsButton');
     assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').mode), 'levels');
-    assert.ok(await page.evaluate(title => window.__mysticGame.scene.getScene('puzzle').children.list
-      .some(child => child.getData('uiText') && child.text === title), LEVELS[0].title));
+    assert.ok(await page.evaluate(title => window.__mysticGame.scene.getScene('puzzle').levelLayer.list
+      .some(child => child.text === title), LEVELS[0].title));
     for (let row = 0; row < LEVELS.length; row++) { await page.mouse.wheel(0, 600); await page.waitForTimeout(60); }
     await page.waitForFunction(index => { const s = window.__mysticGame.scene.getScene('puzzle');
       const r = s.cardRects()[index]; return r.y >= 76 && r.bottom <= s.viewHeight() - 14; }, LEVELS.length - 1);
-    assert.ok(await page.evaluate(title => window.__mysticGame.scene.getScene('puzzle').children.list
-      .some(child => child.getData('uiText') && child.text === title), LEVELS.at(-1).title));
+    assert.ok(await page.evaluate(title => window.__mysticGame.scene.getScene('puzzle').levelLayer.list
+      .some(child => child.text === title), LEVELS.at(-1).title));
     if ([[375, 667], [390, 844], [1920, 1080]].some(([w, h]) => w === width && h === height))
-      await page.screenshot({ path: `${output}/levels-${width}x${height}.png` });
+      await page.screenshot({ path: `docs/screenshots/level-select-redesign/levels-${width}x${height}.png` });
     await clickControl(page, 'backButton');
     await clickControl(page, 'galleryButton');
     assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').mode), 'gallery');
