@@ -7,7 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
     "build:pages": "tsc -b && vite build --base=/My-game/",
-    "test:browser": "node tests/browser-victory.mjs && node tests/browser-level-six.mjs && node tests/browser-task23.mjs && node tests/browser-level-select.mjs",
+    "test:browser": "node tests/browser-victory.mjs && node tests/browser-level-six.mjs && node tests/browser-task23.mjs && node tests/browser-level-select.mjs && node tests/browser-puzzle-polish.mjs",
     "test:collection": "node tests/browser-collection.mjs",
     "test:menu": "node tests/browser-menu.mjs",
     "test": "node --test"

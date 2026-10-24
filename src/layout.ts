@@ -16,10 +16,10 @@ export const SLOT_POINTS = [
 export function looseScale(viewportWidth: number, viewportHeight: number): number {
   return viewportHeight < 700 ? .66 : viewportWidth < 700 ? .70 : .78;
 }
-export function gameLayout(w: number, h: number): { board: Rect; preview: Rect | null } {
+export function gameLayout(w: number, h: number, safeTop = 0, safeBottom = 0): { board: Rect; preview: Rect | null } {
   const desktop = w >= 1000 && w / h > 1.3;
-  const top = desktop ? 84 : h < 700 ? 62 : 60;
-  const foot = desktop ? 86 : 42;
+  const top = (desktop ? 84 : h < 700 ? 62 : 60) + safeTop;
+  const foot = (desktop ? 86 : 42) + safeBottom;
   const boardWidth = Math.max(190, Math.min(desktop ? 590 : w - (h < 700 ? 8 : 4), (h - top - foot) * 2 / 3));
   const boardHeight = boardWidth * 1.5;
   const y = top + Math.max(0, (h - top - foot - boardHeight) * (desktop ? .5 : .14));
@@ -31,6 +31,18 @@ export function gameLayout(w: number, h: number): { board: Rect; preview: Rect |
     return { board, preview: { x: board.x + boardWidth + gap, y: y + Math.max(30, (boardHeight - previewWidth * 1.5) / 2), width: previewWidth, height: previewWidth * 1.5 } };
   }
   return { board: { x: (w - boardWidth) / 2, y, width: boardWidth, height: boardHeight }, preview: null };
+}
+/** Position the existing controls in the unused margin below the painting. */
+export function gameFooterLayout(w: number, h: number, board: Rect, safeBottom = 0) {
+  const bottom = h - safeBottom;
+  const boardBottom = board.y + board.height;
+  const y = boardBottom + Math.min(90, Math.max(20, (bottom - boardBottom) / 2));
+  const hintBelow = h >= 700 && bottom - boardBottom >= 70;
+  const hintX = Math.min(w - 29, board.x + board.width - 27);
+  const left = board.x + 8;
+  const right = hintBelow ? hintX - 37 : board.x + board.width - 8;
+  return { y, hintBelow, hint: { x: hintX, y }, progress: { x: left, y: y - 21,
+    width: Math.max(110, right - left), height: 42 } };
 }
 export function startPosition(board: Rect, viewportWidth: number, slot: number, pieceWidth: number, pieceHeight: number): Point {
   const [sx, sy] = SLOT_POINTS[slot];
