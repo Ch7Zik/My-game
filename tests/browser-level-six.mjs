@@ -52,8 +52,10 @@ async function openLevelSix(page, mobile, height, captureLevels = true) {
   if (sixth.top < 70 || sixth.bottom > height - 10) {
     const point = await screenPoint(page, { x: sixth.x, y: height / 2 });
     await page.mouse.move(point.x, point.y);
-    await page.mouse.wheel(0, 800);
-    await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').levelScrollRow > 0);
+    const delta = await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
+      return s.cardRects()[5].top - s.levelGridLayout().top - 8; });
+    await page.mouse.wheel(0, delta);
+    await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').levelScrollY > 0);
     sixth = await card(page, 5);
   }
   assert.ok(sixth.top >= 70 && sixth.bottom <= height - 9, 'sixth card is visible');

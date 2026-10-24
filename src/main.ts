@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import Phaser from 'phaser';
 import { galleryGrid } from './galleryLayout';
-import { levelGrid } from './levelGrid';
+import { fitPainting, levelGrid } from './levelGrid';
 import { createRegions, inspectRegions, qualityProblems, type PieceRegion, type Point } from './geometry';
 import { canAdvance, canDrag, isComplete, shouldSnap, wasDragged } from './puzzleRules';
 import { pieceDepth } from './pieceLayers';
@@ -55,9 +55,9 @@ class PuzzleScene extends Phaser.Scene {
   private lastDrawMode: typeof this.mode | null = null;
   private viewedLevel = 1;
   private galleryScrollRow = 0;
-  private levelScrollRow = 0;
+  private levelScrollY = 0;
   private galleryPointerStart: { x: number; y: number } | null = null;
-  private levelPointerStart: { x: number; y: number } | null = null;
+  private levelPointerStart: { x: number; y: number; scroll: number; card: number | null; moved: boolean } | null = null;
   private menuPressed = false;
   private tutorialDone = false;
   private dragging: Piece | null = null;
@@ -73,6 +73,9 @@ class PuzzleScene extends Phaser.Scene {
   private fx!: Phaser.GameObjects.Graphics;
   private menuArt: Phaser.GameObjects.Image | null = null;
   private uiImages: Phaser.GameObjects.Image[] = [];
+  private levelLayer: Phaser.GameObjects.Container | null = null;
+  private levelMask: Phaser.GameObjects.Graphics | null = null;
+  private levelScrollTrack: Phaser.GameObjects.Graphics | null = null;
   private guideImage: Phaser.GameObjects.Image | null = null;
   private previewImage: Phaser.GameObjects.Image | null = null;
   private completeImage: Phaser.GameObjects.Image | null = null;
@@ -111,7 +114,7 @@ class PuzzleScene extends Phaser.Scene {
     this.input.on('pointerupoutside', (p: Phaser.Input.Pointer) => this.pointerUp(p));
     this.input.on('wheel', (_pointer: Phaser.Input.Pointer, _over: unknown, _dx: number, dy: number) => {
       if (this.mode === 'gallery' && Math.abs(dy) > 1) this.scrollGallery(dy > 0 ? 1 : -1);
-      if (this.mode === 'levels' && Math.abs(dy) > 1) this.scrollLevels(dy > 0 ? 1 : -1);
+      if (this.mode === 'levels' && Math.abs(dy) > .5) this.scrollLevels(this.levelScrollY + dy);
     });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.hiddenAt = performance.now();
@@ -254,7 +257,9 @@ class PuzzleScene extends Phaser.Scene {
     }
     if (this.mode === 'levels') {
       if (this.backButton().contains(x, y)) { this.mode = 'menu'; this.draw(); return; }
-      this.levelPointerStart = { x, y };
+      const grid = this.levelGridLayout();
+      if (y >= grid.top && y <= grid.bottom)
+        this.levelPointerStart = { x, y, scroll: this.levelScrollY, card: this.cardAt(x, y), moved: false };
       return;
     }
     if (this.mode === 'view') { if (this.backButton().contains(x, y) || this.galleryCloseButton().contains(x, y)) { this.mode = 'gallery'; this.draw(); } return; }
@@ -281,6 +286,13 @@ class PuzzleScene extends Phaser.Scene {
     hit.sprite.setDisplaySize(hit.baseW * scale, hit.baseH * scale);
   }
   private pointerMove(pointer: Phaser.Input.Pointer) {
+    if (this.mode === 'levels' && this.levelPointerStart) {
+      const start = this.levelPointerStart;
+      const y = pointer.y / RENDER_SCALE;
+      if (Math.abs(y - start.y) > 8) start.moved = true;
+      if (start.moved) this.scrollLevels(start.scroll + start.y - y);
+      return;
+    }
     if (!this.dragging) return;
     const p = this.dragging;
     p.sprite.x = Phaser.Math.Clamp(pointer.x / RENDER_SCALE + this.pointerOffset.x, 3 + p.sprite.displayWidth / 2, this.viewWidth() - 3 - p.sprite.displayWidth / 2);
@@ -291,13 +303,9 @@ class PuzzleScene extends Phaser.Scene {
       const start = this.levelPointerStart;
       this.levelPointerStart = null;
       const x = _pointer.x / RENDER_SCALE, y = _pointer.y / RENDER_SCALE;
-      const dy = y - start.y;
-      if (Math.abs(dy) > 24) {
-        const step = levelGrid(this.viewWidth(), this.viewHeight(), LEVELS.length).rowStep;
-        this.scrollLevels(-Math.sign(dy) * Math.max(1, Math.round(Math.abs(dy) / step)));
-      } else if (Math.abs(x - start.x) < 24) {
+      if (!start.moved && Math.abs(y - start.y) < 10 && Math.abs(x - start.x) < 12) {
         const id = this.cardAt(x, y);
-        if (id && isUnlocked(this.progress, id)) this.startGame(id);
+        if (id === start.card && id && isUnlocked(this.progress, id)) this.startGame(id);
       }
       return;
     }
@@ -456,7 +464,8 @@ class PuzzleScene extends Phaser.Scene {
   }
   private backButton() {
     const w = this.viewWidth(), h = this.viewHeight();
-    if (this.mode === 'levels' || this.mode === 'gallery' || this.mode === 'view') return new Phaser.Geom.Circle(w >= 900 ? Math.max(54, (w - 1560) / 2 + 30) : 35, h < 700 ? 39 : w >= 900 ? 62 : 46, 25);
+    if (this.mode === 'levels') return new Phaser.Geom.Circle(32, this.safeInset('top') + 34, 25);
+    if (this.mode === 'gallery' || this.mode === 'view') return new Phaser.Geom.Circle(w >= 900 ? Math.max(54, (w - 1560) / 2 + 30) : 35, h < 700 ? 39 : w >= 900 ? 62 : 46, 25);
     if (this.mode === 'complete') return new Phaser.Geom.Circle(w < 900 ? 30 : 43, (w < 900 ? 30 : 43) + this.safeInset('top'), 24);
     return new Phaser.Geom.Circle(this.headerCenter() - this.headerWidth() / 2 + 27, w < 900 ? 30 : 40, 24);
   }
@@ -519,6 +528,9 @@ class PuzzleScene extends Phaser.Scene {
   private draw() {
     if (!this.bg) return;
     const w = this.viewWidth(), h = this.viewHeight();
+    this.levelLayer?.destroy(); this.levelLayer = null;
+    this.levelMask?.destroy(); this.levelMask = null;
+    this.levelScrollTrack?.destroy(); this.levelScrollTrack = null;
     this.layout(); this.bg.clear(); this.boardG.clear(); this.chrome.clear();
     this.children.list.filter(c => c.getData('uiText')).forEach(c => c.destroy());
     this.timerText = null;
@@ -527,7 +539,8 @@ class PuzzleScene extends Phaser.Scene {
     this.bg.fillGradientStyle(0x050e1c, 0x050e1c, 0x132d43, 0x132d43, 1).fillRect(0, 0, w, h);
     this.drawAtmosphere(w, h);
     if (this.mode === 'menu') this.drawMenu(w, h);
-    else if (this.mode === 'levels' || this.mode === 'gallery') this.drawCards(w);
+    else if (this.mode === 'levels') this.drawLevelSelect(w, h);
+    else if (this.mode === 'gallery') this.drawGalleryGrid(w);
     else if (this.mode === 'view') this.drawGalleryView(w, h);
     else if (this.mode === 'complete') this.drawVictory(w, h);
     else this.drawGame(w, h);
@@ -605,15 +618,19 @@ class PuzzleScene extends Phaser.Scene {
     const w = this.viewWidth(), h = this.viewHeight();
     if (this.mode === 'gallery') return galleryGrid(w, h, LEVELS.length, this.galleryScrollRow).cards
       .map(r => new Phaser.Geom.Rectangle(r.x, r.y, r.width, r.height));
-    return levelGrid(w, h, LEVELS.length, this.levelScrollRow).cards
+    return this.levelGridLayout().cards
       .map(r => new Phaser.Geom.Rectangle(r.x, r.y, r.width, r.height));
+  }
+  private levelGridLayout(scroll = this.levelScrollY) {
+    return levelGrid(this.viewWidth(), this.viewHeight(), LEVELS.length, scroll,
+      this.safeInset('top'), this.safeInset('bottom'));
   }
   private cardAt(x: number, y: number): number | null {
     if (this.mode === 'gallery') {
       const grid = galleryGrid(this.viewWidth(), this.viewHeight(), LEVELS.length, this.galleryScrollRow);
       if (y < grid.top || y > grid.bottom) return null;
     } else if (this.mode === 'levels') {
-      const grid = levelGrid(this.viewWidth(), this.viewHeight(), LEVELS.length, this.levelScrollRow);
+      const grid = this.levelGridLayout();
       if (y < grid.top || y > grid.bottom) return null;
     }
     const index = this.cardRects().findIndex(rect => rect.contains(x, y));
@@ -625,11 +642,12 @@ class PuzzleScene extends Phaser.Scene {
     this.galleryScrollRow = grid.scrollRow;
     this.draw();
   }
-  private scrollLevels(delta: number) {
-    const grid = levelGrid(this.viewWidth(), this.viewHeight(), LEVELS.length, this.levelScrollRow + delta);
-    if (grid.scrollRow === this.levelScrollRow) return;
-    this.levelScrollRow = grid.scrollRow;
-    this.draw();
+  private scrollLevels(scroll: number) {
+    const next = this.levelGridLayout(scroll).scroll;
+    if (next === this.levelScrollY) return;
+    this.levelScrollY = next;
+    this.levelLayer?.setY(-next);
+    this.drawLevelScrollbar();
   }
   private drawSectionHeader(w: number, title: string) {
     const desktop = w >= 900;
@@ -649,58 +667,131 @@ class PuzzleScene extends Phaser.Scene {
     this.chrome.fillStyle(0xe6b971, .85).fillTriangle(x, y - 5, x + 5, y, x, y + 5);
     this.chrome.fillTriangle(x, y - 5, x - 5, y, x, y + 5);
   }
-  private drawCards(w: number) {
-    const desktop = w >= 900;
-    if (this.mode === 'gallery') { this.drawGalleryGrid(w); return; }
-    this.drawSectionHeader(w, 'Выбор уровня');
-    const grid = levelGrid(w, this.viewHeight(), LEVELS.length, this.levelScrollRow);
-    this.levelScrollRow = grid.scrollRow;
-    const rects = this.cardRects();
+  private drawLevelSelect(w: number, h: number) {
+    const grid = this.levelGridLayout();
+    this.levelScrollY = grid.scroll;
+    const safeTop = this.safeInset('top');
+    this.bg.fillStyle(0x071421, .92).fillRect(0, 0, w, h);
+    this.bg.fillGradientStyle(0x0b1d2c, 0x0b1d2c, 0x09131e, 0x09131e, 1)
+      .fillRect(0, grid.top, w, grid.bottom - grid.top);
+    const back = this.backButton();
+    this.iconCircle(back.x, back.y); this.backArrow(back.x, back.y);
+    this.txt(w / 2, safeTop + 32, 'Выбор уровня', Math.min(25, w * .062), '#f4e7ca', true);
+    const completed = this.progress.completed.length;
+    this.txt(w / 2, safeTop + 68, `Пройдено ${completed} из ${LEVELS.length}`, 14, '#c9c1b1');
+    const progressWidth = Math.min(250, w - 92), progressX = (w - progressWidth) / 2;
+    this.chrome.fillStyle(0x40505a, .6).fillRoundedRect(progressX, safeTop + 91, progressWidth, 3, 2);
+    if (completed) this.chrome.fillStyle(0xd0a66f, .9)
+      .fillRoundedRect(progressX, safeTop + 91, progressWidth * completed / LEVELS.length, 3, 2);
+
+    const content = this.levelGridLayout(0);
+    const layer = this.add.container(0, -this.levelScrollY).setDepth(20);
+    this.levelLayer = layer;
+    const mask = this.add.graphics();
+    mask.fillStyle(0xffffff).fillRect(0, grid.top, w, grid.bottom - grid.top);
+    layer.setMask(mask.createGeometryMask());
+    mask.setVisible(false);
+    this.levelMask = mask;
+    const roman = ['I', 'II', 'III', 'IV', 'V'];
+    for (const chapter of content.chapters) {
+      const y = chapter.y + 17;
+      const heading = this.add.text(content.left + 2, y, `ГЛАВА ${roman[chapter.index]}`, {
+        fontFamily: 'Georgia, serif', fontSize: '15px', fontStyle: 'bold', color: '#e3c18b',
+      }).setOrigin(0, .5).setResolution(RENDER_SCALE);
+      const range = this.add.text(content.left + content.contentWidth - 2, y,
+        `УРОВНИ ${chapter.first}–${chapter.last}`, {
+          fontFamily: 'Arial, sans-serif', fontSize: '10px', color: '#9cabb0',
+        }).setOrigin(1, .5).setResolution(RENDER_SCALE);
+      layer.add([heading, range]);
+      const rule = this.add.graphics();
+      rule.lineStyle(1, 0xb39872, .35).lineBetween(content.left, y + 16,
+        content.left + content.contentWidth, y + 16);
+      layer.add(rule);
+    }
     for (let index = 0; index < LEVELS.length; index++) {
-      const level = LEVELS[index], r = rects[index];
-      if (r.y < grid.top - .5 || r.bottom > grid.bottom + .5) continue;
-      const open = isUnlocked(this.progress, level.id);
+      const level = LEVELS[index], r = content.cards[index];
+      const unlocked = isUnlocked(this.progress, level.id);
       const done = this.progress.completed.includes(level.id);
-      this.boardG.fillStyle(0x030b13, .82).fillRoundedRect(r.x + 2, r.y + 4, r.width, r.height, 10);
-      this.boardG.fillStyle(0x102331, .95).fillRoundedRect(r.x, r.y, r.width, r.height, 9);
-      this.boardG.lineStyle(1.3, done ? 0xe4b776 : open ? 0xcba06a : 0x586875, open ? .85 : .55).strokeRoundedRect(r.x, r.y, r.width, r.height, 9);
-      const imageX = r.x + 5;
-      const imageY = r.y + 5;
-      const imageW = r.width - 10;
-      const imageH = r.height - (desktop ? 78 : 35);
-      this.cardThumbnail(level.id, imageX, imageY, imageW, imageH);
-      this.chrome.lineStyle(1, 0xf2c883, open ? .68 : .25).strokeRoundedRect(imageX, imageY, imageW, imageH, 6);
-      if (!open) {
-        this.chrome.fillStyle(0x06111c, .68).fillRoundedRect(imageX, imageY, imageW, imageH, 6);
-        this.drawLock(imageX + imageW / 2, imageY + imageH / 2);
+      const current = unlocked && !done;
+      const wide = index % 5 === 4;
+      const g = this.add.graphics();
+      g.fillStyle(0x02080f, .35).fillRoundedRect(r.x + 1, r.y + 3, r.width, r.height, 9);
+      g.fillStyle(unlocked ? 0x122532 : 0x0d1b28, 1).fillRoundedRect(r.x, r.y, r.width, r.height, 8);
+      g.lineStyle(current ? 1.7 : 1, current ? 0xe5c290 : done ? 0x9d876b : 0x455662,
+        current ? .95 : .68).strokeRoundedRect(r.x + .5, r.y + .5, r.width - 1, r.height - 1, 8);
+      layer.add(g);
+      const frame: Rect = wide
+        ? { x: r.x + 8, y: r.y + 8, width: r.width * .4, height: r.height - 16 }
+        : { x: r.x + 8, y: r.y + 8, width: r.width - 16,
+          height: r.height - (w >= 550 ? 90 : 70) };
+      if (unlocked) {
+        g.fillStyle(0x07131d, 1).fillRoundedRect(frame.x, frame.y, frame.width, frame.height, 4);
+        const source = this.textures.get(`art-${level.id}`).getSourceImage() as HTMLImageElement;
+        const fitted = fitPainting(frame, source.width, source.height);
+        layer.add(this.add.image(fitted.x + fitted.width / 2, fitted.y + fitted.height / 2,
+          `art-${level.id}`).setDisplaySize(fitted.width, fitted.height));
+      } else {
+        g.fillStyle(0x102330, 1).fillRoundedRect(frame.x, frame.y, frame.width, frame.height, 4);
+        g.lineStyle(1, 0x80909a, .2).strokeRoundedRect(frame.x + 7, frame.y + 7,
+          frame.width - 14, frame.height - 14, 3);
+        const cx = frame.x + frame.width / 2, cy = frame.y + frame.height / 2;
+        g.lineStyle(2, 0xb1a58e, .8).strokeRoundedRect(cx - 10, cy - 15, 20, 19, 10);
+        g.fillStyle(0xb1a58e, .85).fillRoundedRect(cx - 14, cy - 3, 28, 23, 3);
+        g.fillStyle(0x102330, 1).fillCircle(cx, cy + 6, 2.5);
       }
-      {
-        this.chrome.fillStyle(0x06121d, .72).fillRoundedRect(imageX + 5, imageY + 5, desktop ? 41 : 32, desktop ? 27 : 22, 6);
-        this.txt(imageX + (desktop ? 25 : 21), imageY + (desktop ? 18 : 16), String(level.id).padStart(2, '0'), desktop ? 14 : 11, '#ffdf9e', true);
-        if (!desktop && !done) {
-          const status = open ? 'ДОСТУПЕН' : 'ЗАКРЫТ';
-          this.chrome.fillStyle(0x06121d, .75).fillRoundedRect(r.right - 69, imageY + 5, 63, 22, 5);
-          this.txt(r.right - 37, imageY + 16, status, 8, open ? '#ffe1a9' : '#a6b2b6', true);
+      g.lineStyle(1, current ? 0xe1bd88 : 0x80919a, .45)
+        .strokeRoundedRect(frame.x + .5, frame.y + .5, frame.width - 1, frame.height - 1, 4);
+      const tx = wide ? frame.x + frame.width + 17 : r.x + 8;
+      const titleWidth = wide ? r.x + r.width - tx - 9 : r.width - 16;
+      const numberY = wide ? r.y + 27 : r.y + r.height - (w >= 550 ? 73 : 55);
+      const titleY = wide ? r.y + 57 : r.y + r.height - (w >= 550 ? 54 : 36);
+      const label = (value: string, x: number, y: number, size: number, color: string, bold = false) => {
+        const text = this.add.text(x, y, value, { fontFamily: bold ? 'Georgia, serif' : 'Arial, sans-serif',
+          fontSize: `${size}px`, fontStyle: bold ? 'bold' : 'normal', color,
+          wordWrap: { width: titleWidth, useAdvancedWrap: true }, lineSpacing: 1 })
+          .setOrigin(0, 0).setResolution(RENDER_SCALE);
+        layer.add(text);
+        return text;
+      };
+      label(`УРОВЕНЬ ${String(level.id).padStart(2, '0')}`, tx, numberY, 10,
+        current ? '#e8c38c' : '#a8b5b9', true);
+      const title = label(level.title, tx, titleY, wide ? (w >= 550 ? 17 : 15) : (w >= 550 ? 15 : 12),
+        unlocked ? '#f2e6ce' : '#afb9bc', true);
+      if (title.height > (wide ? 58 : w >= 550 ? 37 : 31))
+        title.setFontSize(wide ? 12 : w >= 550 ? 13 : 10);
+      if (done) {
+        const stars = starsForDisplay(this.progress.completed, this.results, level.id);
+        const y = wide ? r.y + r.height - 26 : r.y + r.height - 15;
+        for (let star = 0; star < 3; star++) {
+          const x = (wide ? tx : r.x + r.width / 2 - 18) + star * 18;
+          const points: Phaser.Geom.Point[] = [];
+          for (let vertex = 0; vertex < 10; vertex++) {
+            const angle = -Math.PI / 2 + vertex * Math.PI / 5;
+            const radius = vertex % 2 ? 3.4 : 7;
+            points.push(new Phaser.Geom.Point(x + Math.cos(angle) * radius,
+              y + Math.sin(angle) * radius));
+          }
+          g.fillStyle(star < stars ? 0xd9af73 : 0x43525a, .95).fillPoints(points, true);
         }
-        this.fittedTitle(r.centerX, r.bottom - (desktop ? 57 : 22), level.title,
-          r.width - 12, desktop ? 18 : 12, desktop ? 13 : 10)
-          .setColor(open ? '#ffe8bc' : '#aab3ba');
-        if (desktop) {
-          this.drawStars(r.centerX, r.bottom - 28, starsForDisplay(this.progress.completed, this.results, level.id), 8, true);
-          if (!done) this.txt(r.centerX, r.bottom - 9, open ? 'ДОСТУПЕН' : 'ЗАКРЫТ', 10, open ? '#cda66d' : '#89959b', true);
-        } else {
-          this.drawStars(r.centerX, r.bottom - 8, starsForDisplay(this.progress.completed, this.results, level.id), 5.5, true);
-        }
+      } else if (current) {
+        label('ИГРАТЬ', tx, wide ? r.y + r.height - 31 : r.y + r.height - 16, 10, '#e3be88', true);
       }
     }
-    if (grid.maxScrollRow > 0) {
-      const trackH = grid.bottom - grid.top;
-      const thumbH = Math.max(32, trackH * grid.visibleRows / (grid.maxScrollRow + grid.visibleRows));
-      const x = desktop ? Math.min(w - 9, (w + Math.min(w - 120, 1560)) / 2 + 10) : w - 5;
-      const y = grid.top + (trackH - thumbH) * grid.scrollRow / grid.maxScrollRow;
-      this.chrome.fillStyle(0xe3b978, .2).fillRoundedRect(x - 2, grid.top, 3, trackH, 2);
-      this.chrome.fillStyle(0xf4ce8c, .82).fillRoundedRect(x - 2, y, 3, thumbH, 2);
-    }
+    this.levelScrollTrack = this.add.graphics().setDepth(125);
+    this.drawLevelScrollbar();
+  }
+  private drawLevelScrollbar() {
+    if (!this.levelScrollTrack) return;
+    const grid = this.levelGridLayout();
+    const bar = this.levelScrollTrack;
+    bar.clear();
+    if (grid.maxScroll <= 0) return;
+    const trackH = grid.bottom - grid.top;
+    const thumbH = Math.max(28, trackH * trackH / grid.contentHeight);
+    const x = this.viewWidth() - 4;
+    bar.fillStyle(0xc8ab82, .2).fillRoundedRect(x, grid.top, 2, trackH, 1);
+    bar.fillStyle(0xe1bf8d, .78).fillRoundedRect(x - 1,
+      grid.top + (trackH - thumbH) * grid.scroll / grid.maxScroll, 3, thumbH, 1.5);
   }
   private drawGalleryGrid(w: number) {
     const h = this.viewHeight(), desktop = w >= 900;
