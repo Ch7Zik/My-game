@@ -6,7 +6,7 @@ import { createRegions, inspectRegions, qualityProblems, type PieceRegion, type 
 import { canAdvance, canDrag, isComplete, shouldSnap, wasDragged } from './puzzleRules';
 import { pieceDepth } from './pieceLayers';
 import { scatterPieces, scatterPosition } from './scatter';
-import { gameLayout, looseScale, startPosition, SLOT_ORDER, type Rect } from './layout';
+import { gameFooterLayout, gameLayout, looseScale, startPosition, SLOT_ORDER, type Rect } from './layout';
 import { LEVELS, levelById, levelForPlay, type LevelConfig } from './levels';
 import { assetUrl } from './assetUrl';
 import { PuzzleAudio } from './audio';
@@ -130,7 +130,12 @@ class PuzzleScene extends Phaser.Scene {
 
   private viewWidth() { return this.scale.width / RENDER_SCALE; }
   private viewHeight() { return this.scale.height / RENDER_SCALE; }
-  private layout() { const layout = gameLayout(this.viewWidth(), this.viewHeight()); this.board = layout.board; this.preview = layout.preview; }
+  private layout() {
+    const game = this.mode === 'game';
+    const layout = gameLayout(this.viewWidth(), this.viewHeight(),
+      game ? this.safeInset('top') : 0, game ? this.safeInset('bottom') : 0);
+    this.board = layout.board; this.preview = layout.preview;
+  }
 
   private preparePieces() {
     if (!this.artLoaded || this.pieces.length) return;
@@ -279,10 +284,10 @@ class PuzzleScene extends Phaser.Scene {
     const hit = [...this.pieces].sort((a, b) => b.sprite.depth - a.sprite.depth).find(p => canDrag(p.placed) && this.pieceContains(p, x, y));
     if (!hit) return;
     this.dragging = hit;
-    hit.sprite.setDepth(pieceDepth(hit.id, false, true)).setTint(0xfff3cf);
+    hit.sprite.setDepth(pieceDepth(hit.id, false, true)).setTint(0xffe2ac);
     this.pointerOffset = { x: hit.sprite.x - x, y: hit.sprite.y - y };
     this.dragOrigin = { x: hit.sprite.x, y: hit.sprite.y };
-    const scale = looseScale(this.viewWidth(), this.viewHeight()) * 1.025;
+    const scale = looseScale(this.viewWidth(), this.viewHeight()) * 1.04;
     hit.sprite.setDisplaySize(hit.baseW * scale, hit.baseH * scale);
   }
   private pointerMove(pointer: Phaser.Input.Pointer) {
@@ -467,13 +472,19 @@ class PuzzleScene extends Phaser.Scene {
     if (this.mode === 'levels') return new Phaser.Geom.Circle(32, this.safeInset('top') + 34, 25);
     if (this.mode === 'gallery' || this.mode === 'view') return new Phaser.Geom.Circle(w >= 900 ? Math.max(54, (w - 1560) / 2 + 30) : 35, h < 700 ? 39 : w >= 900 ? 62 : 46, 25);
     if (this.mode === 'complete') return new Phaser.Geom.Circle(w < 900 ? 30 : 43, (w < 900 ? 30 : 43) + this.safeInset('top'), 24);
-    return new Phaser.Geom.Circle(this.headerCenter() - this.headerWidth() / 2 + 27, w < 900 ? 30 : 40, 24);
+    return new Phaser.Geom.Circle(this.headerCenter() - this.headerWidth() / 2 + 27,
+      (w < 900 ? 30 : 40) + (this.mode === 'game' ? this.safeInset('top') : 0), 24);
   }
   private hintButton() { const w = this.viewWidth();
     if (this.mode === 'complete') return new Phaser.Geom.Circle(w - (w < 900 ? 30 : 43), (w < 900 ? 30 : 43) + this.safeInset('top'), 24);
-    return new Phaser.Geom.Circle(this.headerCenter() + this.headerWidth() / 2 - 27, w < 900 ? 30 : 40, 24); }
+    if (this.mode === 'game') {
+      const footer = gameFooterLayout(w, this.viewHeight(), this.board, this.safeInset('bottom'));
+      if (footer.hintBelow) return new Phaser.Geom.Circle(footer.hint.x, footer.hint.y, 24);
+    }
+    return new Phaser.Geom.Circle(this.headerCenter() + this.headerWidth() / 2 - 27,
+      (w < 900 ? 30 : 40) + (this.mode === 'game' ? this.safeInset('top') : 0), 24); }
   private headerCenter() { return this.preview ? this.board.x + this.board.width / 2 : this.viewWidth() / 2; }
-  private headerWidth() { return this.preview ? this.board.width : Math.min(this.viewWidth() - 8, 440); }
+  private headerWidth() { return this.preview ? this.board.width : Math.min(this.viewWidth() - 8, this.mode === 'game' ? 600 : 440); }
 
   private currentElapsed(): number {
     const now = performance.now();
@@ -886,8 +897,8 @@ class PuzzleScene extends Phaser.Scene {
     this.boardG.fillStyle(0x020a13, .72).fillRoundedRect(b.x - 2, b.y - 2, b.width + 4, b.height + 4, 6);
     const outer = strokeFrameRect(b, w, 2, 1.5);
     const inner = strokeFrameRect(b, w, 1, 3);
-    this.boardG.lineStyle(1.2, 0xd6ad72, .85).strokeRoundedRect(outer.x, outer.y, outer.width, outer.height, 6);
-    this.boardG.lineStyle(1, 0xffe0aa, .18).strokeRoundedRect(inner.x, inner.y, inner.width, inner.height, 4);
+    this.boardG.lineStyle(1, 0xd6ad72, .62).strokeRoundedRect(outer.x, outer.y, outer.width, outer.height, 6);
+    this.boardG.lineStyle(1, 0xffe0aa, .12).strokeRoundedRect(inner.x, inner.y, inner.width, inner.height, 4);
     this.guideImage?.setPosition(b.x + b.width / 2, b.y + b.height / 2).setDisplaySize(b.width, b.height);
     if (this.preview && this.previewImage) {
       const p = this.preview;
@@ -896,23 +907,35 @@ class PuzzleScene extends Phaser.Scene {
       this.previewImage.setVisible(true).setPosition(p.x + p.width / 2, p.y + p.height / 2).setDisplaySize(p.width, p.height);
     } else this.previewImage?.setVisible(false);
 
-    const hx = this.headerCenter(), hw = this.headerWidth();
+    const hx = this.headerCenter(), hw = this.headerWidth(), safeTop = this.safeInset('top');
     const headerH = mobile ? 58 : 72;
     // A quiet, fixed header grid: controls at the edges, level/time in the
     // upper row, and the title in its own clear row above the picture.
-    this.chrome.fillStyle(0x061725, .94).fillRoundedRect(hx - hw / 2 - 2, 1, hw + 4, headerH, 10);
-    this.chrome.lineStyle(1, 0xc49457, .66).lineBetween(hx - hw / 2 + 51, headerH - 3, hx + hw / 2 - 51, headerH - 3);
+    this.chrome.fillStyle(0x061725, .88).fillRoundedRect(hx - hw / 2 - 2, safeTop + 1, hw + 4, headerH, 10);
+    this.chrome.lineStyle(1, 0xc49457, .4).lineBetween(hx - hw / 2 + 51,
+      safeTop + headerH - 3, hx + hw / 2 - 51, safeTop + headerH - 3);
     const back = this.backButton(), hint = this.hintButton();
     this.iconCircle(back.x, back.y, mobile ? 19 : 21);
-    this.iconCircle(hint.x, hint.y, mobile ? 19 : 21);
     this.backArrow(back.x, back.y);
-    this.bulb(hint.x, hint.y);
-    this.drawLevelTag(hx - (mobile ? 66 : 120), mobile ? 17 : 22, mobile);
+    this.drawLevelTag(hx - (mobile ? 66 : 120), safeTop + (mobile ? 17 : 22), mobile);
     this.displayedTime = formatTime(this.elapsedMs);
-    this.timerText = this.txt(hx + (mobile ? 72 : 120), mobile ? 17 : 22,
-      this.displayedTime, mobile ? 11 : 13, '#ffe1a8', true);
-    this.fittedTitle(hx, mobile ? 39 : 48, this.level.title, hw - (mobile ? 108 : 125),
+    this.timerText = this.txt(hx + (mobile ? 72 : 120), safeTop + (mobile ? 17 : 22),
+      this.displayedTime, mobile ? 12 : 13, '#ffe1a8', true);
+    this.fittedTitle(hx, safeTop + (mobile ? 39 : 48), this.level.title, hw - (mobile ? 108 : 125),
       mobile ? 17 : 22, mobile ? 13 : 16);
+    const footer = gameFooterLayout(w, h, b, this.safeInset('bottom'));
+    const progress = footer.progress, placed = this.pieces.filter(piece => piece.placed).length;
+    this.chrome.fillStyle(0x071725, .86).fillRoundedRect(progress.x, progress.y, progress.width, progress.height, 8);
+    this.chrome.lineStyle(1, 0x72848a, .42).strokeRoundedRect(progress.x + .5, progress.y + .5,
+      progress.width - 1, progress.height - 1, 8);
+    this.txt(progress.x + progress.width / 2, footer.y - 5, `Собрано ${placed} / ${this.level.pieces}`,
+      mobile ? 14 : 15, '#eee0c2', true);
+    const barX = progress.x + 13, barY = footer.y + 11, barWidth = progress.width - 26;
+    this.chrome.fillStyle(0x53616a, .48).fillRoundedRect(barX, barY, barWidth, 3, 1.5);
+    if (placed) this.chrome.fillStyle(0xd6ad72, .94)
+      .fillRoundedRect(barX, barY, barWidth * placed / this.level.pieces, 3, 1.5);
+    this.iconCircle(hint.x, hint.y, mobile ? 19 : 21);
+    this.bulb(hint.x, hint.y);
   }
   private drawVictory(w: number, h: number) {
     this.menuArt?.setVisible(false);
@@ -1042,7 +1065,7 @@ class PuzzleScene extends Phaser.Scene {
   }
   private drawLevelTag(x: number, y: number, mobile: boolean) {
     return this.txt(x, y, `УРОВЕНЬ ${this.level.id}`,
-      mobile ? 11 : 13, '#e7bf7e', true, 'center', true, 'MysticLevelSerif, Georgia, serif');
+      mobile ? 12 : 13, '#e7bf7e', true, 'center', true, 'MysticLevelSerif, Georgia, serif');
   }
   private fittedTitle(x: number, y: number, value: string, available: number, preferred: number, minimum: number) {
     const title = this.txt(x, y, value, preferred, '#ffebc8', true);
