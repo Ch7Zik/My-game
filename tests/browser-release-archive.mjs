@@ -30,6 +30,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
+  page.on('console', message => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
   page.on('response', response => { if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`); });
   await page.goto(`http://127.0.0.1:${address.port}${prefix}`);
   await page.locator('#game canvas').waitFor({ timeout: 90000 });

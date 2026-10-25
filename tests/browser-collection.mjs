@@ -103,6 +103,12 @@ async function runSize(browser, width, height) {
   },
   Array.from({ length: firstLevel - 1 }, (_, i) => i + 1));
   const page = await context.newPage(), errors = [], fullRequests = [];
+  if (process.env.COLLECTION_MOCK_YANDEX) await page.route('**/sdk.js', route => route.fulfill({
+    status: 200, contentType: 'text/javascript', body: `(() => { const listeners = {};
+      window.__mockYandexEmit = name => listeners[name]?.();
+      window.YaGames = { init: async () => ({ features: { LoadingAPI: { ready() {} }, GameplayAPI: { start() {}, stop() {} } },
+        on(name, handler) { listeners[name] = handler }, off(name) { delete listeners[name] } }) }; })()`,
+  }));
   page.on('pageerror', error => errors.push(error.message));
   page.on('response', response => {
     if (response.status() >= 400) errors.push(`${response.status()} ${response.url()}`);
@@ -130,6 +136,26 @@ async function runSize(browser, width, height) {
       assert.equal(state.title, titles[level - 1]);
       assert.ok(state.loaded);
       await capture(page, `level-${String(level).padStart(2, '0')}-start-${width}x${height}`);
+      if (process.env.COLLECTION_MOCK_YANDEX && level === firstLevel) {
+        const before = await page.evaluate(() => {
+          const scene = window.__mysticGame.scene.getScene('puzzle');
+          window.__mockYandexEmit('game_api_pause');
+          return { elapsed: scene.currentElapsed(), pieces: scene.pieces.length,
+            audioPaused: scene.audio.platformPaused };
+        });
+        assert.equal(before.audioPaused, true);
+        await page.waitForTimeout(650);
+        const during = await page.evaluate(() => {
+          const scene = window.__mysticGame.scene.getScene('puzzle');
+          return { elapsed: scene.currentElapsed(), pieces: scene.pieces.length };
+        });
+        assert.ok(during.elapsed - before.elapsed < 100, 'timer advanced during SDK pause');
+        assert.equal(during.pieces, before.pieces);
+        await page.evaluate(() => window.__mockYandexEmit('game_api_resume'));
+        assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').audio.platformPaused), false);
+        await page.waitForTimeout(250);
+        assert.ok(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').currentElapsed()) > during.elapsed + 100);
+      }
       for (let id = counts[level - 1] - 1; id >= 0; id--) {
         console.log(`  piece ${id}`);
         await drag(page, cdp, id);
@@ -167,6 +193,7 @@ async function runSize(browser, width, height) {
     assert.deepEqual(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').progress.completed),
       Array.from({ length: maxLevel }, (_, i) => i + 1));
     assert.ok(await page.evaluate(id => window.__mysticGame.scene.getScene('puzzle').progress.completed.includes(id), maxLevel));
+    assert.ok(await page.evaluate(id => window.__mysticGame.scene.getScene('puzzle').results[id]?.stars >= 1, maxLevel));
     await clickControl(page, 'galleryButton', mobile);
     await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').mode === 'gallery');
     const firstCard = await page.evaluate(() => { const r = window.__mysticGame.scene.getScene('puzzle').cardRects()[0];
@@ -191,7 +218,9 @@ async function runSize(browser, width, height) {
   } finally { await context.close(); }
 }
 
-const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', String(port), '--strictPort'], { stdio: 'ignore' });
+const viteArgs = ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', String(port), '--strictPort'];
+if (process.env.COLLECTION_VITE_MODE) viteArgs.push('--mode', process.env.COLLECTION_VITE_MODE);
+const server = spawn(process.execPath, viteArgs, { stdio: 'ignore' });
 try {
   await ready();
   const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || (existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined);

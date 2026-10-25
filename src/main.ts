@@ -10,6 +10,7 @@ import { gameFooterLayout, gameLayout, looseScale, startPosition, SLOT_ORDER, ty
 import { LEVELS, levelById, levelForPlay, type LevelConfig } from './levels';
 import { assetUrl } from './assetUrl';
 import { PuzzleAudio } from './audio';
+import { YandexGamesBridge } from './yandexGames';
 import { completeLevel, isInGallery, isUnlocked, nextUnplayed, restoreProgress, saveProgress, selectLevel, type Progress } from './progress';
 import { formatTime, recordResult, restoreResults, saveResults, starsForDisplay, starsForTime, type Results } from './results';
 import { fitVictoryStars, victoryAwardProgress, victoryScreenLayout } from './victoryLayout';
@@ -32,6 +33,7 @@ const safeStorage = {
   getItem(key: string): string | null { try { return localStorage.getItem(key); } catch { return null; } },
   setItem(key: string, value: string): void { try { localStorage.setItem(key, value); } catch { /* Storage may be disabled. */ } },
 };
+const yandexGames = new YandexGamesBridge(import.meta.env.MODE === 'yandex');
 class PuzzleScene extends Phaser.Scene {
   private art!: HTMLImageElement;
   private artLoaded = false;
@@ -41,8 +43,8 @@ class PuzzleScene extends Phaser.Scene {
   private results: Results = restoreResults(safeStorage);
   private elapsedMs = 0;
   private startedAt = 0;
-  private hiddenAt: number | null = null;
-  private hiddenDuration = 0;
+  private inactiveAt: number | null = null;
+  private inactiveDuration = 0;
   private completedMs = 0;
   private victoryUiLogged = false;
   private victoryStarY = 0;
@@ -123,15 +125,40 @@ class PuzzleScene extends Phaser.Scene {
       if (this.mode === 'levels' && Math.abs(dy) > .5) this.scrollLevels(this.levelScrollY + dy);
     });
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) this.hiddenAt = performance.now();
-      else {
-        if (this.hiddenAt !== null) { this.hiddenDuration += performance.now() - this.hiddenAt; this.hiddenAt = null; }
-      }
+      this.syncInactive();
       if (this.mode === 'complete') this.logVictory(document.hidden ? 'hidden' : 'visible');
     });
+    const unsubscribe = yandexGames.onPauseChanged(paused => {
+      this.audio.setPlatformPaused(paused);
+      this.syncInactive();
+      if (paused) {
+        if (this.dragging) {
+          const piece = this.dragging;
+          const scale = looseScale(this.viewWidth(), this.viewHeight());
+          piece.sprite.clearTint().setDepth(pieceDepth(piece.id, false))
+            .setDisplaySize(piece.baseW * scale, piece.baseH * scale);
+          this.dragging = null;
+        }
+        this.galleryPointerStart = null;
+        this.levelPointerStart = null;
+      }
+    });
+    this.events.once('shutdown', unsubscribe);
+    this.audio.setPlatformPaused(yandexGames.paused);
+    this.syncInactive();
     this.layout();
     if (this.devPieces === 16 || this.devPieces === 20) this.startGame(6);
     else this.draw();
+    requestAnimationFrame(() => yandexGames.markReady());
+  }
+
+  private syncInactive() {
+    const inactive = document.hidden || yandexGames.paused;
+    if (inactive && this.inactiveAt === null) this.inactiveAt = performance.now();
+    else if (!inactive && this.inactiveAt !== null) {
+      this.inactiveDuration += performance.now() - this.inactiveAt;
+      this.inactiveAt = null;
+    }
   }
 
   private viewWidth() { return this.scale.width / RENDER_SCALE; }
@@ -212,7 +239,8 @@ class PuzzleScene extends Phaser.Scene {
       const starts = scatterPieces(sizes, this.board, this.shuffleSeed);
       this.pieces.forEach((piece, index) => { piece.start = starts[index]; });
     }
-    this.startedAt = performance.now(); this.hiddenDuration = 0; this.hiddenAt = document.hidden ? this.startedAt : null;
+    this.startedAt = performance.now(); this.inactiveDuration = 0;
+    this.inactiveAt = document.hidden || yandexGames.paused ? this.startedAt : null;
     this.reflowPieces(); this.mode = 'game'; this.draw();
   }
 
@@ -239,6 +267,7 @@ class PuzzleScene extends Phaser.Scene {
   }
 
   private pointerDown(pointer: Phaser.Input.Pointer) {
+    if (yandexGames.paused) return;
     const x = pointer.x / RENDER_SCALE, y = pointer.y / RENDER_SCALE;
     this.audio.unlock();
     if (this.mode === 'menu') {
@@ -300,6 +329,7 @@ class PuzzleScene extends Phaser.Scene {
     hit.sprite.setDisplaySize(hit.baseW * scale, hit.baseH * scale);
   }
   private pointerMove(pointer: Phaser.Input.Pointer) {
+    if (yandexGames.paused) return;
     if (this.mode === 'gallery' && this.galleryPointerStart) {
       const start = this.galleryPointerStart;
       const y = pointer.y / RENDER_SCALE;
@@ -320,6 +350,7 @@ class PuzzleScene extends Phaser.Scene {
     p.sprite.y = Phaser.Math.Clamp(pointer.y / RENDER_SCALE + this.pointerOffset.y, this.board.y + p.sprite.displayHeight / 2, this.board.y + this.board.height - p.sprite.displayHeight / 2);
   }
   private pointerUp(_pointer: Phaser.Input.Pointer) {
+    if (yandexGames.paused) return;
     if (this.mode === 'levels' && this.levelPointerStart) {
       const start = this.levelPointerStart;
       this.levelPointerStart = null;
@@ -505,10 +536,10 @@ class PuzzleScene extends Phaser.Scene {
 
   private currentElapsed(): number {
     const now = performance.now();
-    return Math.max(0, now - this.startedAt - this.hiddenDuration - (this.hiddenAt === null ? 0 : now - this.hiddenAt));
+    return Math.max(0, now - this.startedAt - this.inactiveDuration - (this.inactiveAt === null ? 0 : now - this.inactiveAt));
   }
   update() {
-    if (this.mode === 'game' && this.pieces.length && this.startedAt && !document.hidden) {
+    if (this.mode === 'game' && this.pieces.length && this.startedAt && !document.hidden && !yandexGames.paused) {
       this.elapsedMs = this.currentElapsed();
       const label = formatTime(this.elapsedMs);
       if (label !== this.displayedTime) { this.timerText?.setText(label); this.displayedTime = label; }
@@ -581,6 +612,7 @@ class PuzzleScene extends Phaser.Scene {
       if (changed && this.mode !== 'complete' && !reducedMotion.matches)
         this.cameras.main.fadeIn(220, 0, 0, 0);
     }
+    yandexGames.setGameplay(this.mode === 'game' && this.artLoaded && this.pieces.length > 0);
   }
   private drawAtmosphere(w: number, h: number) {
     this.bg.fillStyle(0xffde9c, .35);
@@ -1153,18 +1185,24 @@ class PuzzleScene extends Phaser.Scene {
   }
 }
 
-const game = new Phaser.Game({
-  type: Phaser.AUTO, parent: 'game', backgroundColor: '#071326', antialias: true,
-  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: Math.round(Math.min(window.innerWidth, window.innerHeight * 9 / 16) * RENDER_SCALE),
-    height: Math.round(window.innerHeight * RENDER_SCALE) },
-  input: { activePointers: 1, smoothFactor: 0 }, render: { pixelArt: false, roundPixels: false }, scene: [PuzzleScene],
-});
+async function bootGame() {
+  // Initialize before progress is read so the SDK can install its reliable
+  // localStorage wrapper for ZIP-hosted games. A failed SDK still allows play.
+  await yandexGames.initialize();
+  const game = new Phaser.Game({
+    type: Phaser.AUTO, parent: 'game', backgroundColor: '#071326', antialias: true,
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH,
+      width: Math.round(Math.min(window.innerWidth, window.innerHeight * 9 / 16) * RENDER_SCALE),
+      height: Math.round(window.innerHeight * RENDER_SCALE) },
+    input: { activePointers: 1, smoothFactor: 0 }, render: { pixelArt: false, roundPixels: false }, scene: [PuzzleScene],
+  });
 
-function resizeGame() {
-  game.scale.setGameSize(Math.round(Math.min(window.innerWidth, window.innerHeight * 9 / 16) * RENDER_SCALE),
-    Math.round(window.innerHeight * RENDER_SCALE));
-  game.scale.refresh();
+  function resizeGame() {
+    game.scale.setGameSize(Math.round(Math.min(window.innerWidth, window.innerHeight * 9 / 16) * RENDER_SCALE),
+      Math.round(window.innerHeight * RENDER_SCALE));
+    game.scale.refresh();
+  }
+  window.addEventListener('resize', resizeGame);
+  if (import.meta.env.DEV) Object.assign(window, { __mysticGame: game });
 }
-window.addEventListener('resize', resizeGame);
-if (import.meta.env.DEV) Object.assign(window, { __mysticGame: game });
+void bootGame();

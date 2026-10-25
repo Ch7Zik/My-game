@@ -1,0 +1,37 @@
+name: Build Yandex Games release archive
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'tests/browser-yandex-sdk.mjs'
+      - 'tools/package-yandex.py'
+      - 'package*.json'
+      - '.github/workflows/yandex-release.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build:yandex
+      - run: npm run test:yandex:browser
+      - run: npm run package:yandex
+      - uses: actions/upload-artifact@v4
+        with:
+          name: puzzles-yandex-games
+          path: release/puzzles-yandex-games.zip
+          if-no-files-found: error
+          retention-days: 14

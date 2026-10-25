@@ -17,6 +17,7 @@ export class PuzzleAudio {
   private pending = new Map<Effect, Promise<AudioBuffer | null>>();
   private unlocked = false;
   private disposed = false;
+  private platformPaused = false;
   private lastPlace = 0;
 
   constructor(private storage: AudioStorage) {
@@ -26,15 +27,21 @@ export class PuzzleAudio {
   }
 
   private visibilityChanged = () => {
-    this.music.setHidden(document.hidden);
+    this.music.setHidden(document.hidden || this.platformPaused);
     if (!this.context) return;
-    if (document.hidden) void this.context.suspend().catch(() => {});
+    if (document.hidden || this.platformPaused) void this.context.suspend().catch(() => {});
     else if (this.unlocked) void this.context.resume().catch(() => {});
   };
 
+  setPlatformPaused(paused: boolean) {
+    if (this.platformPaused === paused) return;
+    this.platformPaused = paused;
+    this.visibilityChanged();
+  }
+
   /** Must be called from a real pointer event; browsers may reject other calls. */
   unlock() {
-    if (this.disposed || document.hidden) return;
+    if (this.disposed || document.hidden || this.platformPaused) return;
     this.music.unlock();
     try {
       if (!this.context) {
@@ -59,10 +66,10 @@ export class PuzzleAudio {
   }
 
   play(effect: Effect) {
-    if (!this.settings.effects || !this.unlocked || !this.context || document.hidden) return;
+    if (!this.settings.effects || !this.unlocked || !this.context || document.hidden || this.platformPaused) return;
     const context = this.context;
     void this.load(effect).then(buffer => {
-      if (!buffer || !this.settings.effects || document.hidden || context.state !== 'running') return;
+      if (!buffer || !this.settings.effects || document.hidden || this.platformPaused || context.state !== 'running') return;
       if (effect === 'place') {
         const now = performance.now();
         if (now - this.lastPlace < 100) return;
