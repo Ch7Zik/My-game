@@ -88,15 +88,27 @@ try {
 
   // A missing SDK must not prevent the specially built release from starting.
   const unavailable = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await unavailable.addInitScript(() => {
+    if (!localStorage.getItem('mystic-puzzles-v1')) {
+      localStorage.setItem('mystic-puzzles-v1', JSON.stringify({ version: 1, completed: [1], currentLevel: 2 }));
+      localStorage.setItem('mystic-puzzles-results-v1', JSON.stringify({ 1: { bestMs: 42000, stars: 3 } }));
+    }
+  });
   await unavailable.route('**/sdk.js', route => route.abort());
   const fallback = await unavailable.newPage(), pageErrors = [];
   fallback.on('pageerror', error => pageErrors.push(error.message));
   await fallback.goto(url);
   await fallback.locator('#game canvas').waitFor();
   const fallbackCanvas = await fallback.locator('#game canvas').boundingBox();
-  const fallbackArt = fallback.waitForResponse(response => response.url().endsWith('/assets/level-01.webp') && response.ok());
+  const fallbackArt = fallback.waitForResponse(response => response.url().endsWith('/assets/level-02.webp') && response.ok());
   await fallback.touchscreen.tap(fallbackCanvas.x + fallbackCanvas.width / 2, fallbackCanvas.y + fallbackCanvas.height * .86);
   await fallbackArt;
+  await fallback.reload();
+  assert.deepEqual(await fallback.evaluate(() => {
+    const progress = JSON.parse(localStorage.getItem('mystic-puzzles-v1'));
+    const results = JSON.parse(localStorage.getItem('mystic-puzzles-results-v1'));
+    return { completed: progress.completed, stars: results[1].stars };
+  }), { completed: [1], stars: 3 });
   assert.deepEqual(pageErrors, []);
   await unavailable.close();
   console.log('Yandex release: ready after menu, start/stop once, SDK pause blocks input, missing SDK preserves play');
