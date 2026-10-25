@@ -29,6 +29,8 @@ jobs:
       - run: npm run build:yandex
       - run: npm run test:yandex:browser
       - run: npm run package:yandex
+      - run: python3 -m zipfile -e release/puzzles-yandex-games.zip /tmp/puzzles-yandex-release
+      - run: YANDEX_RELEASE_DIR=/tmp/puzzles-yandex-release npm run test:yandex:browser
       - uses: actions/upload-artifact@v4
         with:
           name: puzzles-yandex-games

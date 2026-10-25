@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium } from 'playwright';
 
-const root = resolve('dist'), prefix = '/nested/game/';
+const root = resolve(process.env.YANDEX_RELEASE_DIR || 'dist'), prefix = '/nested/game/';
 const output = 'docs/screenshots/yandex-games-release';
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.webp': 'image/webp',
   '.ttf': 'font/ttf', '.svg': 'image/svg+xml', '.ogg': 'audio/ogg', '.mp3': 'audio/mpeg' };

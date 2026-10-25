@@ -34,6 +34,8 @@ npm run test:yandex:browser
 npm run package:yandex
 ```
 
+Для отдельной проверки именно содержимого ZIP можно распаковать его во временный каталог и запустить браузерный тест: `python3 -m zipfile -e release/puzzles-yandex-games.zip /tmp/puzzles-yandex-release` и `YANDEX_RELEASE_DIR=/tmp/puzzles-yandex-release npm run test:yandex:browser`. Workflow выполняет тот же шаг перед выдачей artifact.
+
 Архив создаётся в `release/puzzles-yandex-games.zip`. Каталог `release/` игнорируется Git. Упаковщик проверяет, что это именно Yandex-сборка, `index.html` расположен в корне, названия файлов латинские и без пробелов, отсутствуют исходники/тесты, CRC исправен и распакованный размер меньше 100 МиБ. Ограничение Яндекс Игр — **100 МБ распакованных файлов** согласно [официальным требованиям, пункты 1.21–1.22](https://yandex.ru/dev/games/doc/ru/concepts/requirements).
 
 GitHub Actions workflow `Build Yandex Games release archive` выполняет сборку и сохраняет файл как artifact `puzzles-yandex-games` на 14 дней. В PR откройте вкладку **Checks** → нужный запуск workflow → **Artifacts** и скачайте архив artifact; при скачивании GitHub может завернуть его во внешний ZIP. Для загрузки в Консоль используйте вложенный `puzzles-yandex-games.zip`. Workflow не публикует игру.
