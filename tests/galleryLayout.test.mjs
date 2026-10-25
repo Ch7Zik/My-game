@@ -23,3 +23,12 @@ test('desktop gallery keeps paintings compact and reaches a 25-image catalog', (
   assert.equal(last.scrollRow, last.maxScrollRow);
   assert.ok(last.cards[24].y + last.cards[24].height <= last.bottom + .01);
 });
+
+test('gallery scroll accepts finger-sized pixel increments and safe insets', () => {
+  const base = galleryGrid(375, 667, 25, 0, 44, 34);
+  const shifted = galleryGrid(375, 667, 25, 28 / base.rowStep, 44, 34);
+  assert.equal(base.top, 152);
+  assert.equal(base.bottom, 623);
+  assert.ok(Math.abs(shifted.cards[0].y - (base.cards[0].y - 28)) < .01);
+  assert.ok(shifted.scrollRow > 0 && shifted.scrollRow < 1);
+});

@@ -18,8 +18,14 @@ async function waitForServer() {
 }
 
 async function tap(page, mobile, x, y) {
-  if (mobile) await page.touchscreen.tap(x, y);
-  else await page.mouse.click(x, y);
+  const point = await page.evaluate(({ x, y }) => {
+    const s = window.__mysticGame.scene.getScene('puzzle');
+    const canvas = document.querySelector('#game canvas').getBoundingClientRect();
+    return { x: canvas.left + x * canvas.width / s.viewWidth(),
+      y: canvas.top + y * canvas.height / s.viewHeight() };
+  }, { x, y });
+  if (mobile) await page.touchscreen.tap(point.x, point.y);
+  else await page.mouse.click(point.x, point.y);
 }
 
 async function run(browser, width, height) {
@@ -55,7 +61,7 @@ async function run(browser, width, height) {
     if (!baseline) {
       assert.equal(gallery.scrollWidth, width);
       if (mobile) assert.ok(Math.abs(gallery.rects[0].y - gallery.rects[1].y) < 1, 'gallery must have two columns');
-      assert.ok(gallery.labels.includes('Галерея картин'));
+      assert.ok(gallery.labels.includes('Галерея'));
       if (mobile) {
         const cdp = await context.newCDPSession(page);
         const x = width / 2, from = height * .76, to = height * .2;
@@ -64,9 +70,9 @@ async function run(browser, width, height) {
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').galleryScrollRow > 0);
         assert.equal(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').mode), 'gallery');
-        const last = await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
-          const r = s.cardRects().at(-1); return { x: r.centerX, y: r.centerY, row: s.galleryScrollRow }; });
-        assert.ok(last.y > 76 && last.y < height - 10 && last.row > 0);
+        const scroll = await page.evaluate(() => { const s = window.__mysticGame.scene.getScene('puzzle');
+          return { row: s.galleryScrollRow, max: s.galleryGridLayout().maxScrollRow }; });
+        assert.ok(scroll.row > 0 && scroll.row < scroll.max);
         if (output) await page.screenshot({ path: `${output}/gallery-scrolled-${width}x${height}.jpg`, type: 'jpeg', quality: 88, scale: 'css' });
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: to, id: 1 }] });
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x, y: from, id: 1 }] });

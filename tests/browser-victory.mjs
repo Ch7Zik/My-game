@@ -258,7 +258,7 @@ async function runSize(browser, width, height) {
     const { picture } = result.layout;
     assert.ok(Math.abs(result.image.bounds.width - picture.width) < 1);
     assert.ok(Math.abs(result.image.bounds.height - picture.height) < 1);
-    const title = result.labels.find(l => l.text === 'Картина собрана!');
+    const title = result.labels.find(l => l.text === 'Пазл собран!');
     const pictureName = result.labels.find(l => l.text === firstTitle);
     const time = result.labels.find(l => l.text === `Время ${String(Math.floor(result.completedMs / 60000)).padStart(2, '0')}:${String(Math.floor(result.completedMs / 1000) % 60).padStart(2, '0')}`);
     const nextLabel = result.labels.find(l => l.text === 'Далее');
@@ -313,7 +313,7 @@ async function runSize(browser, width, height) {
     }
     if (width === 390 && task19VariantDir) {
       mkdirSync(task19VariantDir, { recursive: true });
-      for (const [earned, elapsedMs] of [[1, 200000], [2, 120000], [3, result.completedMs]]) {
+      for (const [earned, elapsedMs] of [[1, 800000], [2, 480000], [3, result.completedMs]]) {
         await page.evaluate(ms => { const scene = window.__mysticGame.scene.getScene('puzzle');
           scene.completedMs = ms; scene.victoryAwardStartedAt = performance.now() - 1500; scene.draw(); }, elapsedMs);
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -349,7 +349,7 @@ async function runSize(browser, width, height) {
           texts: s.children.list.filter(c => c.getData('uiText')).map(c => c.text) }; });
       assert.ok(resized.layout.picture.y >= 47);
       assert.ok(resized.layout.button.y + resized.layout.button.height <= 606);
-      assert.ok(resized.texts.includes('Картина собрана!') && resized.texts.includes('Далее'));
+      assert.ok(resized.texts.includes('Пазл собран!') && resized.texts.includes('Далее'));
       await page.evaluate(() => { document.documentElement.style.removeProperty('--safe-top');
         document.documentElement.style.removeProperty('--safe-bottom'); });
       await page.setViewportSize({ width, height });
@@ -408,7 +408,7 @@ async function runSize(browser, width, height) {
         return { reveal: scene.revealImage, button: scene.nextButton(),
           labels: scene.children.list.filter(c => c.getData('uiText')).map(c => c.text) }; });
       assert.equal(staticVictory.reveal, null);
-      assert.ok(staticVictory.labels.includes('Картина собрана!') && staticVictory.labels.includes('Далее'));
+      assert.ok(staticVictory.labels.includes('Пазл собран!') && staticVictory.labels.includes('Далее'));
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       if (task19VariantDir) {
         const staticFrame = await page.screenshot({ path: `${task19VariantDir}/real-completion-reduced-motion.png`, scale: 'css' });
