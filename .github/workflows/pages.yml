@@ -34,6 +34,9 @@ jobs:
       - run: npm run build:pages
         env:
           VITE_BUILD_ID: ${{ github.sha }}
+      - run: npm run test:release
+        env:
+          RELEASE_TEST_PREFIX: /My-game/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
