@@ -10,16 +10,17 @@ export interface GalleryGrid {
   scrollRow: number;
 }
 
-// Scroll one complete row at a time so card art never slips beneath the fixed
-// header and no canvas mask can clip the paintings. Works for a longer catalog.
-export function galleryGrid(w: number, h: number, count: number, requestedRow = 0): GalleryGrid {
+// Card positions use a fractional row offset so a masked gallery can follow
+// a finger or mouse wheel continuously without rebuilding the art on each move.
+export function galleryGrid(w: number, h: number, count: number, requestedRow = 0,
+  safeTop = 0, safeBottom = 0): GalleryGrid {
   const desktop = w >= 900;
   const columns = desktop ? 5 : 2;
   const gap = desktop ? 16 : h < 700 ? 7 : 9;
   const group = desktop ? Math.min(w - 120, 1560) : w - 24;
   const cardWidth = (group - gap * (columns - 1)) / columns;
-  const bottom = h - (desktop ? 24 : 10);
-  const preliminaryTop = desktop ? 170 : 76;
+  const bottom = h - safeBottom - (desktop ? 24 : 10);
+  const preliminaryTop = safeTop + (desktop ? 170 : 108);
   const availableHeight = bottom - preliminaryTop;
   const preferredHeight = desktop ? Math.min(560, Math.max(350, h - 250))
     : cardWidth * 1.5 + (h < 700 ? 38 : 44);
@@ -29,7 +30,7 @@ export function galleryGrid(w: number, h: number, count: number, requestedRow = 
   const visibleRows = Math.max(1, Math.floor((bottom - top + gap) / rowStep));
   const rows = Math.ceil(count / columns);
   const maxScrollRow = Math.max(0, rows - visibleRows);
-  const scrollRow = Math.max(0, Math.min(maxScrollRow, Math.round(requestedRow)));
+  const scrollRow = Math.max(0, Math.min(maxScrollRow, requestedRow));
   const left = (w - group) / 2;
   const cards = Array.from({ length: count }, (_, index) => ({
     x: left + (index % columns) * (cardWidth + gap),

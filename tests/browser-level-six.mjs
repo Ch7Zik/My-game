@@ -241,7 +241,7 @@ async function runSize(browser, width, height) {
     assert.ok(won.elapsedMs > 0 && won.result.stars >= 1 && won.result.stars <= 3);
     assert.ok(won.completed.includes(6));
     assert.equal(won.scrollWidth, width);
-    assert.ok(won.labels.includes('Картина собрана!') && won.labels.includes('Далее'));
+    assert.ok(won.labels.includes('Пазл собран!') && won.labels.includes('Далее'));
     assert.ok(Math.abs(won.image.width - won.picture.width) < 1 &&
       Math.abs(won.image.height - won.picture.height) < 1);
     if (captures) {
@@ -253,7 +253,7 @@ async function runSize(browser, width, height) {
     assert.ok(await page.evaluate(() => window.__mysticGame.scene.getScene('puzzle').progress.completed.includes(6)));
     if (width === 390 || width === 1920) {
       await page.mouse.move(width / 2, height / 2);
-      await page.mouse.wheel(0, 800);
+      await page.mouse.wheel(0, 300);
       await page.waitForFunction(() => window.__mysticGame.scene.getScene('puzzle').galleryScrollRow > 0);
       if (captures) await page.screenshot({ path: `${captures}/gallery-${width}x${height}.png`, timeout: 120000 });
       const sixth = await card(page, 5);
