@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { YandexGamesBridge, type YandexSdk } from './yandexGames.ts';
+import { loadYandexSdk, YandexGamesBridge, type YandexSdk } from './yandexGames.ts';
 
 function mockSdk() {
   const calls: string[] = [];
@@ -85,6 +85,67 @@ test('failed SDK initialization keeps the game bridge inert without a fake SDK',
     await bridge.initialize();
     assert.equal(bridge.connected, false);
     assert.equal(messages.length, 1);
+    bridge.dispose();
+  } finally { console.warn = warning; }
+});
+
+test('hanging YaGames.init times out instead of blocking game startup', async () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: {
+    setTimeout: (callback: () => void, delay: number) => {
+      if (delay === 20000) queueMicrotask(callback);
+      return 1;
+    },
+    clearTimeout: () => {},
+    YaGames: { init: () => new Promise<YandexSdk>(() => {}) },
+  } });
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: {
+    createElement: () => ({}),
+    head: { append: (script: { onload: () => void }) => queueMicrotask(() => script.onload()) },
+  } });
+  try {
+    await assert.rejects(loadYandexSdk(), /YaGames\.init timed out/);
+  } finally {
+    if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
+    else Reflect.deleteProperty(globalThis, 'window');
+    if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument);
+    else Reflect.deleteProperty(globalThis, 'document');
+  }
+});
+
+test('SDK feature errors are reported without throwing into gameplay', async () => {
+  const mock = mockSdk();
+  mock.sdk.features!.LoadingAPI!.ready = () => { throw new Error('ready failed'); };
+  mock.sdk.features!.GameplayAPI!.start = () => { throw new Error('start failed'); };
+  const warning = console.warn, messages: unknown[][] = [];
+  console.warn = (...args: unknown[]) => { messages.push(args); };
+  try {
+    const bridge = new YandexGamesBridge(true, async () => mock.sdk);
+    await bridge.initialize();
+    bridge.markReady();
+    bridge.setGameplay(true);
+    bridge.setGameplay(false);
+    assert.deepEqual(mock.calls, ['stop']);
+    assert.equal(messages.length, 2);
+    bridge.dispose();
+  } finally { console.warn = warning; }
+});
+
+test('missing platform features are reported rather than silently ignored', async () => {
+  const mock = mockSdk();
+  delete mock.sdk.features;
+  const warning = console.warn, messages: unknown[][] = [];
+  console.warn = (...args: unknown[]) => { messages.push(args); };
+  try {
+    const bridge = new YandexGamesBridge(true, async () => mock.sdk);
+    await bridge.initialize();
+    bridge.markReady();
+    bridge.setGameplay(true);
+    assert.deepEqual(messages.map(message => message[0]), [
+      'Yandex Games LoadingAPI.ready unavailable',
+      'Yandex Games GameplayAPI unavailable',
+    ]);
     bridge.dispose();
   } finally { console.warn = warning; }
 });

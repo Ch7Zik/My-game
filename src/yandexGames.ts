@@ -29,7 +29,17 @@ export async function loadYandexSdk(): Promise<YandexSdk> {
     document.head.append(script);
   });
   if (!window.YaGames?.init) throw new Error('Yandex Games SDK did not expose YaGames.init');
-  return window.YaGames.init();
+  let timeout: number | undefined;
+  try {
+    return await Promise.race([
+      window.YaGames.init(),
+      new Promise<never>((_, reject) => {
+        timeout = window.setTimeout(() => reject(new Error('Yandex Games YaGames.init timed out')), 20000);
+      }),
+    ]);
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 /** Platform events pause the game; the SDK handles its own gameplay markers on those events. */
@@ -99,13 +109,22 @@ export class YandexGamesBridge {
     if (!this.sdk || !this.ready) return;
     if (!this.readySent) {
       this.readySent = true;
-      this.sdk.features?.LoadingAPI?.ready();
+      const loadingApi = this.sdk.features?.LoadingAPI;
+      if (loadingApi) this.callApi('LoadingAPI.ready', () => loadingApi.ready());
+      else console.warn('Yandex Games LoadingAPI.ready unavailable');
     }
     if (this.platformPaused) return;
     if (this.wantsGameplay === this.markedGameplay) return;
     this.markedGameplay = this.wantsGameplay;
-    if (this.markedGameplay) this.sdk.features?.GameplayAPI?.start();
-    else this.sdk.features?.GameplayAPI?.stop();
+    const gameplayApi = this.sdk.features?.GameplayAPI;
+    if (!gameplayApi) { console.warn('Yandex Games GameplayAPI unavailable'); return; }
+    if (this.markedGameplay) this.callApi('GameplayAPI.start', () => gameplayApi.start());
+    else this.callApi('GameplayAPI.stop', () => gameplayApi.stop());
+  }
+
+  private callApi(name: string, call: () => void) {
+    try { call(); }
+    catch (error) { console.warn(`Yandex Games ${name} failed`, error); }
   }
 
   dispose() {
